@@ -57,9 +57,11 @@ docs/docs/THESIS_FORMATTED_COMPLETE.md
 docs/docs/CHANGES_SUMMARY.txt
 docs/docs/NIR_Freshness_Scoring_Research.md
 
-# User-generated content
-static/images/processed/
-static/images/uploads/
+# User-generated content (ignore all files except .gitkeep to preserve directory structure)
+static/images/processed/*
+!static/images/processed/.gitkeep
+static/images/uploads/*
+!static/images/uploads/.gitkeep
 
 # Database files (created on first run)
 *.db
