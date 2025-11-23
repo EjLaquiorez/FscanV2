@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan History - Fruit Quality Scanner</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <nav>
+                <a href="/" class="nav-link">Home</a>
+                <a href="/history" class="nav-link active">History</a>
+                <a href="/settings" class="nav-link">Settings</a>
+            </nav>
+            <h1>🍎 Fruit Quality Scanner</h1>
+            <p class="subtitle">Review past scans and freshness insights</p>
+        </header>
+
+        <main>
+            <div class="history-section">
+                <div class="history-header">
+                    <div>
+                        <h2>Scan History</h2>
+                        <p class="history-subtitle">Track every fruit analyzed with AI + NIR</p>
+                    </div>
+                    <div class="history-actions">
+                        <a href="/" class="btn btn-secondary">New Scan</a>
+                        <button class="btn btn-primary" id="historyRefreshBtn">Refresh</button>
+                    </div>
+                </div>
+
+                <div class="history-summary-cards">
+                    <div class="summary-card">
+                        <span class="summary-label">Total Scans</span>
+                        <span class="summary-value">{{ summary_stats.total_scans }}</span>
+                    </div>
+                    <div class="summary-card">
+                        <span class="summary-label">Fruits Analyzed</span>
+                        <span class="summary-value">{{ summary_stats.total_fruits }}</span>
+                    </div>
+                    <div class="summary-card">
+                        <span class="summary-label">Last Scan</span>
+                        <span class="summary-value">{{ summary_stats.latest_scan or '—' }}</span>
+                    </div>
+                </div>
+
+                <div class="history-filters">
+                    <div class="filter-group">
+                        <label for="historySearch">Search</label>
+                        <input type="text" id="historySearch" placeholder="Search by scan ID or fruit name">
+                    </div>
+                    <div class="filter-group">
+                        <label for="fruitFilter">Fruit</label>
+                        <select id="fruitFilter">
+                            <option value="">All Fruits</option>
+                            {% for fruit in fruit_types %}
+                            <option value="{{ fruit }}">{{ fruit }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="statusFilter">Status</label>
+                        <select id="statusFilter">
+                            <option value="">All Statuses</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Exported">Exported</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="dateFilter">Time Range</label>
+                        <select id="dateFilter">
+                            <option value="">All Time</option>
+                            <option value="24h">Last 24 hours</option>
+                            <option value="7d">Last 7 days</option>
+                            <option value="30d">Last 30 days</option>
+                        </select>
+                    </div>
+                </div>
+
+                {% if history_entries %}
+                <div class="history-table-wrapper">
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>Scan</th>
+                                <th>Fruit Name</th>
+                                <th>Ripeness</th>
+                                <th>Freshness</th>
+                                <th>YOLO Conf.</th>
+                                <th>NIR Conf.</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in history_entries %}
+                            <tr
+                                data-fruit="{{ entry.fruit_type }}"
+                                data-status="{{ entry.status }}"
+                                data-date="{{ entry.raw_timestamp or '' }}"
+                                data-scan="{{ entry.scan_id }}"
+                            >
+                                <td>
+                                    <div class="scan-meta">
+                                        <span class="scan-id">#{{ entry.scan_id[:8] }}</span>
+                                        <span class="scan-timestamp">{{ entry.timestamp }}</span>
+                                        <span class="scan-total">{{ entry.total_fruits }} fruits</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="fruit-cell">
+                                        <strong>{{ entry.fruit_type }}</strong>
+                                        <span class="confidence-text">{{ "%.1f"|format(entry.confidence) }}% confidence</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="quality-badge quality-{{ entry.quality_status|lower }}">{{ entry.ripeness }}</span>
+                                </td>
+                                <td>
+                                    <span class="metric-pill">{{ "%.1f"|format(entry.freshness_score) }}%</span>
+                                </td>
+                                <td>{{ "%.1f"|format(entry.yolo_confidence) }}%</td>
+                                <td>{{ "%.1f"|format(entry.nir_confidence) }}%</td>
+                                <td>
+                                    <span class="status-pill status-{{ entry.status|lower }}">{{ entry.status }}</span>
+                                </td>
+                                <td>
+                                    <div class="history-actions">
+                                        <a href="/results/{{ entry.scan_id }}" class="btn btn-info btn-small">View</a>
+                                        <a href="/api/export/{{ entry.scan_id }}" class="btn btn-secondary btn-small">Export</a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <div class="history-empty-indicator" id="historyEmptyMessage" style="display: none;">
+                        <h3>No records match your filters</h3>
+                        <p>Reset the filters or start a new scan.</p>
+                    </div>
+                </div>
+                {% else %}
+                <div class="history-empty-state">
+                    <h3>No scans yet</h3>
+                    <p>Run your first fruit scan to see it in your history.</p>
+                    <a href="/" class="btn btn-primary">Start Scanning</a>
+                </div>
+                {% endif %}
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
+

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fruit Quality Scanner</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <nav>
+                <a href="/" class="nav-link active">Home</a>
+                <a href="/history" class="nav-link">History</a>
+                <a href="/settings" class="nav-link">Settings</a>
+            </nav>
+            <h1>🍎 Fruit Quality Scanner</h1>
+            <p class="subtitle">Detect and analyze fruit quality using AI and NIR technology</p>
+        </header>
+
+        <main>
+            <div class="upload-section">
+                <h2>Upload Fruit Image</h2>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-content">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <p class="upload-text">Drag and drop your image here</p>
+                        <p class="upload-subtext">or click to browse</p>
+                        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                    </div>
+                </div>
+
+                <div class="preview-section" id="previewSection" style="display: none;">
+                    <h3>Image Preview</h3>
+                    <img id="imagePreview" src="" alt="Preview">
+                    <div class="button-group">
+                        <button class="btn btn-primary" id="scanBtn">Scan Fruit</button>
+                        <button class="btn btn-secondary" id="clearBtn">Clear</button>
+                    </div>
+                </div>
+
+                <div class="camera-section">
+                    <button class="btn btn-camera" id="cameraBtn">
+                        📷 Use Camera
+                    </button>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h4>How it works</h4>
+                <ol>
+                    <li>Upload an image or use camera</li>
+                    <li>Click "Scan Fruit" to analyze</li>
+                    <li>View results and quality analysis</li>
+                </ol>
+            </div>
+        </main>
+
+        <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+            <div class="loading-spinner"></div>
+            <p>Processing your image...</p>
+        </div>
+
+        <div class="error-message" id="errorMessage" style="display: none;"></div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
+

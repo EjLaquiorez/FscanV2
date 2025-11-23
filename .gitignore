@@ -1,0 +1,69 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Editors/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Virtual environments
+.venv/
+.venv_yolo/
+venv/
+env/
+
+# Build & packaging
+build/
+dist/
+*.egg-info/
+
+# Training artifacts & large outputs
+runs/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.engine
+*.trt
+*.tensorrt
+
+# Dataset caches
+Fruit_dataset/**/labels.cache
+*.cache
+
+# Logs & temp
+*.log
+*.tmp
+*.bak
+
+
+# Datasets (local, large)
+FreshBanana/
+RottenBanana/
+data/datasets/
+data/models/
+runs/
+
+# Thesis documents (not needed for deployment)
+docs/docs/*.docx
+docs/docs/CHAPTER_5_REVISED.md
+docs/docs/THESIS_FORMATTED_COMPLETE.md
+docs/docs/CHANGES_SUMMARY.txt
+docs/docs/NIR_Freshness_Scoring_Research.md
+
+# User-generated content
+static/images/processed/
+static/images/uploads/
+
+# Database files (created on first run)
+*.db
+database/*.db
+
+# Project expenses (not needed for deployment)
+THESIS_PROJECT_EXPENSES.txt

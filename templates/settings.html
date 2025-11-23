@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Fruit Quality Scanner</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <nav>
+                <a href="/" class="nav-link">Home</a>
+                <a href="/history" class="nav-link">History</a>
+                <a href="/settings" class="nav-link active">Settings</a>
+            </nav>
+            <h1>🍎 Fruit Quality Scanner</h1>
+            <p class="subtitle">Configure detection preferences and hardware</p>
+        </header>
+
+        <main>
+            <div class="settings-section">
+                <div class="settings-header">
+                    <div>
+                        <h2>System Settings</h2>
+                        <p class="settings-subtitle">Fine-tune AI thresholds, NIR scanner, and storage locations</p>
+                    </div>
+                    <div class="settings-actions">
+                        <button class="btn btn-secondary" id="resetSettingsBtn">Reset Defaults</button>
+                        <button class="btn btn-primary" form="settingsMasterForm">Save Changes</button>
+                    </div>
+                </div>
+
+                <div class="settings-alert" id="settingsAlert" style="display: none;"></div>
+
+                <form id="settingsMasterForm">
+                    <div class="settings-grid">
+                        <div class="settings-card">
+                            <div class="card-header">
+                                <h3>Detection Parameters</h3>
+                                <span class="card-badge">YOLOv5</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-row">
+                                    <label for="confidenceThreshold">Confidence Threshold</label>
+                                    <div class="input-with-hint">
+                                        <input
+                                            type="number"
+                                            id="confidenceThreshold"
+                                            name="confidence_threshold"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            value="{{ '%.2f'|format(detection_settings.confidence_threshold) }}"
+                                        >
+                                        <small>Typical range: 0.20 - 0.50</small>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <label for="iouThreshold">IoU Threshold</label>
+                                    <div class="input-with-hint">
+                                        <input
+                                            type="number"
+                                            id="iouThreshold"
+                                            name="iou_threshold"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            value="{{ '%.2f'|format(detection_settings.iou_threshold) }}"
+                                        >
+                                        <small>Higher values reduce overlapping boxes.</small>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <label>Model Path</label>
+                                    <code class="path-chip">{{ detection_settings.model_path }}</code>
+                                </div>
+                                <div class="form-row">
+                                    <label>Dataset Config</label>
+                                    <code class="path-chip">{{ detection_settings.data_yaml_path }}</code>
+                                </div>
+                                <div class="form-row double">
+                                    <div>
+                                        <label>Max Upload Size</label>
+                                        <p class="value-large">{{ detection_settings.max_upload_size_mb }} MB</p>
+                                    </div>
+                                    <div>
+                                        <label>Allowed Extensions</label>
+                                        <p class="value-large">{{ detection_settings.allowed_extensions }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <div class="card-header">
+                                <h3>NIR Scanner</h3>
+                                <span class="card-badge badge-green">Felix</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="toggle-row">
+                                    <div>
+                                        <p class="toggle-label">Enable NIR Integration</p>
+                                        <small>Disabling NIR fallback uses YOLO-only freshness.</small>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="nirEnabledToggle" {{ 'checked' if nir_settings.enabled else '' }}>
+                                        <span class="switch-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="toggle-row">
+                                    <div>
+                                        <p class="toggle-label">Mock Mode</p>
+                                        <small>Useful for development without hardware.</small>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="nirMockToggle" {{ 'checked' if nir_settings.mock_mode else '' }}>
+                                        <span class="switch-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="form-row">
+                                    <label for="nirDeviceId">Device ID</label>
+                                    <input type="text" id="nirDeviceId" value="{{ nir_settings.device_id }}" readonly>
+                                </div>
+                                <div class="form-row">
+                                    <label for="nirApiUrl">API URL</label>
+                                    <input type="text" id="nirApiUrl" value="{{ nir_settings.api_url }}" readonly>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <div class="card-header">
+                                <h3>Storage & Database</h3>
+                                <span class="card-badge badge-blue">{{ storage_settings.database_type }}</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-row">
+                                    <label>Database URL</label>
+                                    <code class="path-chip">{{ storage_settings.database_url }}</code>
+                                </div>
+                                <div class="form-row">
+                                    <label>Upload Folder</label>
+                                    <code class="path-chip">{{ storage_settings.upload_folder }}</code>
+                                </div>
+                                <div class="form-row">
+                                    <label>Processed Folder</label>
+                                    <code class="path-chip">{{ storage_settings.processed_folder }}</code>
+                                </div>
+                                <div class="storage-hint">
+                                    <p>Tip: Keep at least 500MB free for annotated images.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-card status-card">
+                            <div class="card-header">
+                                <h3>Component Status</h3>
+                                <span class="card-badge badge-outline">Live</span>
+                            </div>
+                            <div class="card-body">
+                                <ul class="status-list">
+                                    <li>
+                                        <span>YOLO Detector</span>
+                                        <span class="status-dot {{ 'status-success' if system_status.yolo_detector == 'Connected' else 'status-warning' }}">{{ system_status.yolo_detector }}</span>
+                                    </li>
+                                    <li>
+                                        <span>NIR Scanner</span>
+                                        <span class="status-dot {{ 'status-success' if system_status.nir_scanner == 'Connected' else 'status-warning' }}">{{ system_status.nir_scanner }}</span>
+                                    </li>
+                                    <li>
+                                        <span>Fusion Engine</span>
+                                        <span class="status-dot {{ 'status-success' if system_status.fusion_engine == 'Ready' else 'status-warning' }}">{{ system_status.fusion_engine }}</span>
+                                    </li>
+                                    <li>
+                                        <span>Database</span>
+                                        <span class="status-dot {{ 'status-success' if system_status.database == 'Connected' else 'status-warning' }}">{{ system_status.database }}</span>
+                                    </li>
+                                </ul>
+                                <div class="status-note">
+                                    <p>Statuses refresh each time you open this page.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
+
