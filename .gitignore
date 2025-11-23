@@ -50,12 +50,8 @@ data/datasets/
 data/models/
 runs/
 
-# Thesis documents (not needed for deployment)
-docs/docs/*.docx
-docs/docs/CHAPTER_5_REVISED.md
-docs/docs/THESIS_FORMATTED_COMPLETE.md
-docs/docs/CHANGES_SUMMARY.txt
-docs/docs/NIR_Freshness_Scoring_Research.md
+# Documentation folder (not needed for deployment)
+docs/
 
 # User-generated content (ignore all files except .gitkeep to preserve directory structure)
 static/images/processed/*
