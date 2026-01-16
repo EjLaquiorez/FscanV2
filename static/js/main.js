@@ -128,8 +128,8 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             hideLoading();
             if (data.success) {
-                // Redirect to results page
-                window.location.href = `/results/${data.scan_id}`;
+                // Display results on the right side using data from response
+                displayResultsOnPage(data.scan_id, data.results);
             } else {
                 // Show detailed error if available
                 let errorMsg = data.error || 'Scan failed. Please try again.';
@@ -490,6 +490,234 @@ document.addEventListener('DOMContentLoaded', function() {
             exportHistory();
         });
     }
+
+    // Display results on the page (right side)
+    function displayResultsOnPage(scanId, resultsData) {
+        const resultsContent = document.getElementById('resultsContent');
+        
+        if (resultsContent && resultsData) {
+            // Build results HTML
+            const fruits = resultsData.fruits || [];
+            let resultsHTML = '';
+                        
+            // Add fruits list
+            if (fruits.length > 0) {
+                resultsHTML += `
+                    <div>
+                        <h4 style="font-size: 0.875rem; font-weight: 600; color: #2c5530; margin-bottom: 12px;">Detected Fruits</h4>
+                        <div style="max-height: 300px; overflow-y: auto; margin-bottom: 16px;">
+                            <div style="display: grid; grid-template-columns: 2fr 1.5fr 1fr; gap: 12px; padding: 10px 12px; background: #f8f9fa; border-radius: 4px; margin-bottom: 8px; font-size: 0.75rem; font-weight: 600; color: #495057; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <div>Fruit Type</div>
+                                <div>Ripeness</div>
+                                <div style="text-align: right;">Confidence</div>
+                            </div>
+                `;
+                
+                // Store fruits data for modal
+                window.currentFruitsData = fruits;
+                window.currentScanId = scanId;
+                
+                fruits.forEach((fruit, index) => {
+                    let displayType = fruit.type || 'Unknown';
+                    const ripeness = fruit.ripeness || 'Unknown';
+                    const confidence = ((fruit.confidence || 0) * 100).toFixed(1);
+                    
+                    // Remove ripeness keywords from fruit type name
+                    const ripenessKeywords = ['ripe', 'unripe', 'overripe', 'half-ripe', 'half ripe'];
+                    ripenessKeywords.forEach(keyword => {
+                        // Remove keyword at the start, end, or middle of the string
+                        const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+                        displayType = displayType.replace(regex, '').trim();
+                        // Clean up extra spaces
+                        displayType = displayType.replace(/\s+/g, ' ').trim();
+                    });
+                    
+                    // Determine badge color
+                    let badgeColor = '#6c757d';
+                    if (ripeness.toLowerCase() === 'ripe') badgeColor = '#ffc107';
+                    else if (ripeness.toLowerCase() === 'unripe') badgeColor = '#17a2b8';
+                    else if (ripeness.toLowerCase() === 'overripe') badgeColor = '#dc3545';
+                    
+                    resultsHTML += `
+                        <div style="display: grid; grid-template-columns: 2fr 1.5fr 1fr; gap: 12px; align-items: center; padding: 10px 12px; border-bottom: 1px solid #e9ecef; font-size: 0.8125rem;">
+                            <div>
+                                <strong style="color: #495057;">${displayType}</strong>
+                            </div>
+                            <div>
+                                <span style="display: inline-block; padding: 3px 10px; border-radius: 4px; background: ${badgeColor}; color: white; font-size: 0.75rem; font-weight: 500;">${ripeness}</span>
+                            </div>
+                            <div style="color: #6c757d; font-weight: 500; text-align: right;">${confidence}%</div>
+                        </div>
+                    `;
+                });
+                
+                resultsHTML += `
+                        </div>
+                    </div>
+                `;
+            } else {
+                resultsHTML = `
+                    <div style="text-align: center; padding: 20px; color: #6c757d;">
+                        <p style="font-size: 0.875rem; margin: 0;">No fruits detected in this scan.</p>
+                    </div>
+                `;
+            }
+            
+            // Add action buttons
+            resultsHTML += `
+                <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 8px;">
+                    <button class="btn btn-primary" onclick="showFullResultsModal()" style="width: 100%; text-align: center; font-size: 0.875rem; padding: 8px;">View Full Results</button>
+                    <button class="btn btn-secondary" onclick="clearResults()" style="width: 100%; font-size: 0.875rem; padding: 8px;">Clear Results</button>
+                </div>
+            `;
+            
+            resultsContent.innerHTML = resultsHTML;
+        }
+    }
+
+    // Clear results function
+    window.clearResults = function() {
+        const resultsContent = document.getElementById('resultsContent');
+        
+        if (resultsContent) {
+            resultsContent.innerHTML = `
+                <div style="text-align: center; padding: 40px 20px; color: #6c757d;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin: 0 auto 16px; opacity: 0.5;">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <p style="font-size: 0.875rem; margin-bottom: 8px; font-weight: 500; color: #495057;">No scan performed yet</p>
+                    <p style="font-size: 0.8125rem; margin: 0; opacity: 0.8;">Upload an image and click "Scan Fruit" to see results here</p>
+                </div>
+            `;
+        }
+    };
+
+    // Show full results modal with YOLO/NIR weighted confidence
+    window.showFullResultsModal = function() {
+        const fruits = window.currentFruitsData || [];
+        const scanId = window.currentScanId || '';
+        
+        if (!fruits || fruits.length === 0) {
+            alert('No results to display');
+            return;
+        }
+        // Create modal overlay
+        const modalOverlay = document.createElement('div');
+        modalOverlay.className = 'modal-overlay';
+        modalOverlay.id = 'fullResultsModal';
+        modalOverlay.style.display = 'flex';
+        
+        let modalHTML = `
+            <div class="modal-content" style="max-width: 800px;">
+                <div class="modal-header">
+                    <h2>Full Results - Fusion Analysis</h2>
+                    <button class="modal-close" onclick="closeFullResultsModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="fusion-info">
+                        <p class="fusion-description">
+                            The freshness score is computed using weighted averaging of YOLO and Felix (NIR Scanner) confidence scores:
+                        </p>
+                        <div class="weight-formula">
+                            <strong>Freshness Score = (YOLO Confidence × 0.7) + (Felix Confidence × 0.3)</strong>
+                        </div>
+                    </div>
+                    <div class="fruits-analysis">
+        `;
+        
+        fruits.forEach((fruit, index) => {
+            let displayType = fruit.type || 'Unknown';
+            const ripeness = fruit.ripeness || 'Unknown';
+            
+            // Remove ripeness keywords from fruit type name
+            const ripenessKeywords = ['ripe', 'unripe', 'overripe', 'half-ripe', 'half ripe'];
+            ripenessKeywords.forEach(keyword => {
+                const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+                displayType = displayType.replace(regex, '').trim();
+                displayType = displayType.replace(/\s+/g, ' ').trim();
+            });
+            
+            const yoloConfidence = (fruit.yolo_confidence || fruit.confidence || 0) * 100;
+            const nirConfidence = (fruit.nir_confidence || 0) * 100;
+            const yoloWeight = 0.7;
+            const nirWeight = 0.3;
+            const yoloContribution = yoloConfidence * yoloWeight;
+            const nirContribution = nirConfidence * nirWeight;
+            const finalScore = yoloContribution + nirContribution;
+            
+            modalHTML += `
+                <div class="fruit-analysis-card">
+                    <div class="fruit-header">
+                        <h3>${displayType}</h3>
+                        <span class="final-score">Final Score: ${finalScore.toFixed(1)}%</span>
+                    </div>
+                    <div class="computation-details">
+                        <div class="computation-row">
+                            <div class="computation-label">YOLO Confidence:</div>
+                            <div class="computation-value">${yoloConfidence.toFixed(2)}%</div>
+                            <div class="computation-weight">Weight: ${yoloWeight}</div>
+                            <div class="computation-result">= ${yoloContribution.toFixed(2)}%</div>
+                        </div>
+                        <div class="computation-row">
+                            <div class="computation-label">Felix (NIR) Confidence:</div>
+                            <div class="computation-value">${nirConfidence.toFixed(2)}%</div>
+                            <div class="computation-weight">Weight: ${nirWeight}</div>
+                            <div class="computation-result">= ${nirContribution.toFixed(2)}%</div>
+                        </div>
+                        <div class="computation-divider"></div>
+                        <div class="computation-row computation-final">
+                            <div class="computation-label">Freshness Score:</div>
+                            <div class="computation-value-final">${finalScore.toFixed(2)}%</div>
+                        </div>
+                    </div>
+                    <div class="fruit-metadata">
+                        <span class="metadata-item">Ripeness: <strong>${ripeness}</strong></span>
+                    </div>
+                </div>
+            `;
+        });
+        
+        modalHTML += `
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeFullResultsModal()">Close</button>
+                </div>
+            </div>
+        `;
+        
+        modalOverlay.innerHTML = modalHTML;
+        document.body.appendChild(modalOverlay);
+        document.body.style.overflow = 'hidden';
+        
+        // Close on overlay click
+        modalOverlay.addEventListener('click', function(e) {
+            if (e.target === modalOverlay) {
+                closeFullResultsModal();
+            }
+        });
+    };
+
+    // Close full results modal
+    window.closeFullResultsModal = function() {
+        const modal = document.getElementById('fullResultsModal');
+        if (modal) {
+            modal.remove();
+            document.body.style.overflow = '';
+        }
+    };
+
+    // Close modal with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('fullResultsModal');
+            if (modal && modal.style.display === 'flex') {
+                closeFullResultsModal();
+            }
+        }
+    });
 });
 
 // Add camera modal styles dynamically

@@ -439,6 +439,31 @@ def detect():
         else:
             return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/results/<scan_id>')
+def api_results(scan_id):
+    """API endpoint to get results data by scan_id"""
+    try:
+        if db_handler:
+            scan_data = db_handler.get_scan(scan_id)
+            if scan_data:
+                return jsonify({
+                    'success': True,
+                    'results': scan_data.get('results', {}),
+                    'fruits': scan_data.get('fruits', [])
+                })
+        
+        return jsonify({
+            'success': False,
+            'error': 'Scan not found'
+        }), 404
+    
+    except Exception as e:
+        print(f"Error loading results: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/results/<scan_id>')
 def results(scan_id):
     """Display results page"""
@@ -450,10 +475,10 @@ def results(scan_id):
                 results_data = scan_data.get('results', {})
                 fruits = results_data.get('fruits', [])
                 
-                # Calculate statistics based on ripeness, not fruit type
+                # Calculate statistics based on ripeness categories
                 total_fruits = len(fruits)
-                ripe_count = sum(1 for f in fruits if f.get('ripeness', '').lower() == 'ripe')
                 unripe_count = sum(1 for f in fruits if f.get('ripeness', '').lower() == 'unripe')
+                ripe_count = sum(1 for f in fruits if f.get('ripeness', '').lower() == 'ripe')
                 overripe_count = sum(1 for f in fruits if f.get('ripeness', '').lower() == 'overripe')
                 
                 # Get processed image path
@@ -463,8 +488,8 @@ def results(scan_id):
                     result_image=result_image,
                     fruits=fruits,
                     total_fruits=total_fruits,
-                    ripe_count=ripe_count,
                     unripe_count=unripe_count,
+                    ripe_count=ripe_count,
                     overripe_count=overripe_count
                 )
         
@@ -473,8 +498,8 @@ def results(scan_id):
             result_image="/static/images/placeholder.jpg",
             fruits=[],
             total_fruits=0,
-            ripe_count=0,
             unripe_count=0,
+            ripe_count=0,
             overripe_count=0
         )
     

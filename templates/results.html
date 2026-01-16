@@ -14,75 +14,115 @@
                 <a href="/history" class="nav-link">History</a>
                 <a href="/settings" class="nav-link">Settings</a>
             </nav>
-            <h1>🍎 Fruit Quality Scanner</h1>
+            <h1>Fruit Quality Scanner</h1>
             <p class="subtitle">Detection Results</p>
         </header>
 
         <main>
-            <div class="results-section">
-                <div class="results-header">
-                    <h2>Scan Results</h2>
-                    <div class="button-group">
-                        <button class="btn btn-info" id="freshnessAnalysisBtn">View Freshness Analysis</button>
-                        <button class="btn btn-primary" id="exportBtn">Export Results</button>
-                        <a href="/" class="btn btn-secondary">New Scan</a>
+            <div class="hierarchical-grid">
+                <!-- Top-left: Main Image -->
+                <div class="grid-main">
+                    <h3 style="margin-bottom: 16px; font-size: 1.125rem; font-weight: 600; color: #2c5530;">Detected Image</h3>
+                    <img id="resultImage" src="{{ result_image }}" alt="Detection Results" style="width: 100%; height: auto; border-radius: 6px;">
+                </div>
+
+                <!-- Bottom-left 1: Summary Stats Part 1 -->
+                <div class="grid-left-bottom-1">
+                    <h3 style="margin-bottom: 16px; font-size: 1.125rem; font-weight: 600; color: #2c5530;">Summary</h3>
+                    <div class="summary-stats" style="grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                        <div class="stat-card">
+                            <div class="stat-value">{{ total_fruits }}</div>
+                            <div class="stat-label">Total Fruits</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">{{ unripe_count }}</div>
+                            <div class="stat-label">Unripe</div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="results-content">
-                    <div class="image-result">
-                        <h3>Detected Image</h3>
-                        <img id="resultImage" src="{{ result_image }}" alt="Detection Results">
-                    </div>
-
-                    <div class="summary-section">
-                        <h3>Summary</h3>
-                        <div class="summary-stats">
-                            <div class="stat-card">
-                                <div class="stat-value">{{ total_fruits }}</div>
-                                <div class="stat-label">Total Fruits</div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-value">{{ fresh_count }}</div>
-                                <div class="stat-label">Fresh</div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-value">{{ ripe_count }}</div>
-                                <div class="stat-label">Ripe</div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-value">{{ unripe_count }}</div>
-                                <div class="stat-label">Unripe</div>
-                            </div>
+                <!-- Bottom-left 2: Summary Stats Part 2 -->
+                <div class="grid-left-bottom-2">
+                    <div class="summary-stats" style="grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                        <div class="stat-card">
+                            <div class="stat-value">{{ ripe_count }}</div>
+                            <div class="stat-label">Ripe</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">{{ overripe_count }}</div>
+                            <div class="stat-label">Overripe</div>
                         </div>
                     </div>
+                </div>
 
-                    <div class="details-section">
-                        <h3>Detailed Results</h3>
-                        <table class="results-table">
-                            <thead>
-                                <tr>
-                                    <th>Fruit Type</th>
-                                    <th>Ripeness</th>
-                                    <th>Confidence</th>
-                                </tr>
-                            </thead>
-                            <tbody id="resultsTableBody">
-                                {% for fruit in fruits %}
-                                {% set display_type = fruit.type %}
-                                {% if fruit.ripeness and display_type.endswith(' ' ~ fruit.ripeness) %}
-                                {% set display_type = display_type[:-(fruit.ripeness|length + 1)] %}
-                                {% endif %}
-                                <tr data-fruit-index="{{ loop.index0 }}">
-                                    <td>{{ display_type }}</td>
-                                    <td>
-                                        <span class="quality-badge quality-{{ fruit.ripeness|lower }}">{{ fruit.ripeness }}</span>
-                                    </td>
-                                    <td>{{ "%.1f"|format(fruit.confidence * 100) }}%</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                <!-- Top-right 1: Actions -->
+                <div class="grid-right-top-1">
+                    <h3 style="margin-bottom: 16px; font-size: 1.125rem; font-weight: 600; color: #2c5530;">Actions</h3>
+                    <div class="button-group" style="flex-direction: column; gap: 10px;">
+                        <button class="btn btn-info" id="freshnessAnalysisBtn" style="width: 100%;">View Freshness Analysis</button>
+                        <button class="btn btn-primary" id="exportBtn" style="width: 100%;">Export Results</button>
+                        <a href="/" class="btn btn-secondary" style="width: 100%; text-align: center;">New Scan</a>
+                    </div>
+                </div>
+
+                <!-- Top-right 2: Fusion Info -->
+                <div class="grid-right-top-2">
+                    <h3 style="margin-bottom: 16px; font-size: 1.125rem; font-weight: 600; color: #2c5530;">Fusion Method</h3>
+                    <div class="fusion-info" style="margin-bottom: 0;">
+                        <p class="fusion-description" style="font-size: 0.875rem; margin-bottom: 12px;">
+                            Weighted averaging of YOLO and NIR confidence scores:
+                        </p>
+                        <div class="weight-formula" style="font-size: 0.8rem;">
+                            <strong>Score = (YOLO × 0.7) + (NIR × 0.3)</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom-right 1: Detailed Results -->
+                <div class="grid-right-bottom-1">
+                    <h3 style="margin-bottom: 16px; font-size: 1.125rem; font-weight: 600; color: #2c5530;">Detailed Results</h3>
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>Fruit</th>
+                                <th>Ripeness</th>
+                                <th>Confidence</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsTableBody">
+                            {% for fruit in fruits %}
+                            {% set display_type = fruit.type %}
+                            {% if fruit.ripeness and display_type.endswith(' ' ~ fruit.ripeness) %}
+                            {% set display_type = display_type[:-(fruit.ripeness|length + 1)] %}
+                            {% endif %}
+                            <tr data-fruit-index="{{ loop.index0 }}">
+                                <td style="font-size: 0.875rem;">{{ display_type }}</td>
+                                <td>
+                                    <span class="quality-badge quality-{{ fruit.ripeness|lower }}">{{ fruit.ripeness }}</span>
+                                </td>
+                                <td style="font-size: 0.875rem;">{{ "%.1f"|format(fruit.confidence * 100) }}%</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Bottom-right 2: Scan Info -->
+                <div class="grid-right-bottom-2">
+                    <h3 style="margin-bottom: 16px; font-size: 1.125rem; font-weight: 600; color: #2c5530;">Scan Information</h3>
+                    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.875rem;">
+                        <div><strong>Total Detected:</strong> {{ total_fruits }} fruits</div>
+                        <div><strong>Analysis Date:</strong> <span id="scanDate">{{ "now"|date }}</span></div>
+                    </div>
+                </div>
+
+                <!-- Bottom-right 3: Quick Stats -->
+                <div class="grid-right-bottom-3">
+                    <h3 style="margin-bottom: 16px; font-size: 1.125rem; font-weight: 600; color: #2c5530;">Quick Stats</h3>
+                    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.875rem;">
+                        <div>Ripe: <strong>{{ ripe_count }}</strong> ({{ "%.0f"|format((ripe_count / total_fruits * 100) if total_fruits > 0 else 0) }}%)</div>
+                        <div>Unripe: <strong>{{ unripe_count }}</strong> ({{ "%.0f"|format((unripe_count / total_fruits * 100) if total_fruits > 0 else 0) }}%)</div>
+                        <div>Overripe: <strong>{{ overripe_count }}</strong> ({{ "%.0f"|format((overripe_count / total_fruits * 100) if total_fruits > 0 else 0) }}%)</div>
                     </div>
                 </div>
             </div>
