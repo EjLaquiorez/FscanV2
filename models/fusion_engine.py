@@ -21,9 +21,9 @@ class FusionEngine:
         self.yolo_detector = yolo_detector
         self.nir_scanner = nir_scanner
         
-        # Fusion weights (YOLO: 0.6, Felix/NIR: 0.4 as per conceptual framework)
-        self.yolo_weight = 0.6  # Weight for YOLO detection
-        self.nir_weight = 0.4   # Weight for Felix/NIR analysis
+        # Fusion weights (YOLO: 0.7, Felix/NIR: 0.3 as per conceptual framework)
+        self.yolo_weight = 0.7  # Weight for YOLO detection
+        self.nir_weight = 0.3   # Weight for Felix/NIR analysis
         
         print("Fusion Engine initialized")
     
@@ -101,9 +101,13 @@ class FusionEngine:
             # High agreement - use YOLO result with boosted confidence
             final_ripeness = yolo_ripeness
             ripeness_confidence = min(1.0, (yolo_confidence + nir_confidence) / 2 + 0.1)
+        elif yolo_confidence >= 0.8:
+            # YOLO has very high confidence - trust YOLO ripeness assessment
+            final_ripeness = yolo_ripeness
+            ripeness_confidence = yolo_confidence
         else:
             # Disagreement - use weighted combination
-            # Prefer YOLO for type, NIR for ripeness assessment
+            # Prefer YOLO since it has higher weight (0.7 vs 0.3)
             final_ripeness = self._combine_ripeness(yolo_ripeness, nir_ripeness, yolo_confidence, nir_confidence)
             ripeness_confidence = (yolo_confidence + nir_confidence) / 2
         
@@ -207,8 +211,17 @@ class FusionEngine:
         elif nir_conf > yolo_conf + 0.2:
             return nir_ripeness
         else:
-            # Similar confidence - prefer NIR for ripeness (more accurate for quality)
-            return nir_ripeness
+            # Similar confidence - prefer YOLO since it has higher weight (0.7 vs 0.3)
+            # Also prefer YOLO if its confidence is high (>= 0.7) as it's more reliable
+            if yolo_conf >= 0.7:
+                return yolo_ripeness
+            # Use weighted decision based on fusion weights
+            weighted_yolo = yolo_conf * self.yolo_weight
+            weighted_nir = nir_conf * self.nir_weight
+            if weighted_yolo >= weighted_nir:
+                return yolo_ripeness
+            else:
+                return nir_ripeness
     
     def _fuse_quality_status(self, yolo_quality: str, nir_quality_score: float,
                             yolo_conf: float, nir_conf: float) -> str:

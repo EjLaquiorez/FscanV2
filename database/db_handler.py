@@ -334,4 +334,32 @@ class DatabaseHandler:
                 'fruit_type_counts': {},
                 'quality_status_counts': {}
             }
+    
+    def clear_all_scans(self) -> bool:
+        """
+        Clear all scans and fruits from database
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            session = self.get_session()
+            
+            # Delete all fruits first (due to foreign key constraint)
+            session.query(Fruit).delete()
+            # Delete all scans
+            session.query(Scan).delete()
+            
+            session.commit()
+            session.close()
+            
+            print("All scans cleared from database")
+            return True
+        
+        except Exception as e:
+            print(f"Error clearing scans from database: {e}")
+            if 'session' in locals():
+                session.rollback()
+                session.close()
+            return False
 

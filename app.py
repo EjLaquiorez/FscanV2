@@ -46,11 +46,27 @@ def init_components():
     global yolo_detector, nir_scanner, fusion_engine, db_handler
     
     try:
-        if YOLODetector and MODEL_PATH.exists():
+        if not YOLODetector:
+            print("Warning: YOLODetector module not available")
+        elif not MODEL_PATH.exists():
+            print(f"Warning: Model file not found at: {MODEL_PATH}")
+            print(f"  Model path exists: {MODEL_PATH.parent.exists()}")
+            print(f"  Please ensure the model file exists or train a new model")
+        else:
+            print(f"Loading YOLO model from: {MODEL_PATH}")
             yolo_detector = YOLODetector(str(MODEL_PATH), str(DATA_YAML_PATH))
             print("YOLO detector initialized successfully")
+    except FileNotFoundError as e:
+        print(f"Error: Model file not found: {e}")
+        print(f"  Expected path: {MODEL_PATH}")
+        print(f"  Please train a model or place a trained model at this location")
+    except ImportError as e:
+        print(f"Error: Missing required dependencies: {e}")
+        print(f"  Please install: pip install ultralytics opencv-python")
     except Exception as e:
-        print(f"Warning: Could not initialize YOLO detector: {e}")
+        import traceback
+        print(f"Error: Could not initialize YOLO detector: {e}")
+        print(f"  Traceback:\n{traceback.format_exc()}")
     
     try:
         if create_nir_scanner:
@@ -129,7 +145,7 @@ def history():
                     ripeness = fruit.get('ripeness', 'Unknown')
                     yolo_conf = fruit.get('yolo_confidence', fruit.get('confidence', 0)) or 0
                     nir_conf = fruit.get('nir_confidence', 0) or 0
-                    freshness_score = (yolo_conf * 0.6 + nir_conf * 0.4) * 100
+                    freshness_score = (yolo_conf * 0.7 + nir_conf * 0.3) * 100
 
                     entry = {
                         'scan_id': scan_details.get('scan_id'),
@@ -335,8 +351,8 @@ def detect():
                 'ripeness': result.get('ripeness', 'Unknown'),  # Unripe, Ripe, Overripe
                 'yolo_confidence': result.get('yolo_confidence', result.get('confidence', 0)),
                 'nir_confidence': result.get('nir_confidence', 0),
-                'yolo_weight': 0.6,
-                'nir_weight': 0.4,
+                'yolo_weight': 0.7,
+                'nir_weight': 0.3,
                 'fusion_method': result.get('fusion_method', 'weighted_average'),
                 'bbox': result.get('bbox', [])
             })
@@ -454,6 +470,24 @@ def export_results(scan_id):
     except Exception as e:
         print(f"Error exporting results: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/clear-history', methods=['POST'])
+def clear_history():
+    """Clear all scan history"""
+    try:
+        if not db_handler:
+            return jsonify({'success': False, 'error': 'Database handler not available'}), 500
+        
+        success = db_handler.clear_all_scans()
+        
+        if success:
+            return jsonify({'success': True, 'message': 'All scan history cleared successfully'})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to clear history'}), 500
+    
+    except Exception as e:
+        print(f"Error clearing history: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.errorhandler(413)
 def too_large(e):

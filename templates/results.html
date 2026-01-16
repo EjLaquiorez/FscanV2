@@ -102,7 +102,7 @@
                         The freshness score is computed using weighted averaging of YOLO and Felix (NIR Scanner) confidence scores:
                     </p>
                     <div class="weight-formula">
-                        <strong>Freshness Score = (YOLO Confidence × 0.6) + (Felix Confidence × 0.4)</strong>
+                        <strong>Freshness Score = (YOLO Confidence × 0.7) + (Felix Confidence × 0.3)</strong>
                     </div>
                 </div>
                 
@@ -121,19 +121,19 @@
                             <div class="computation-row">
                                 <div class="computation-label">YOLO Confidence:</div>
                                 <div class="computation-value">{{ "%.2f"|format(fruit.get('yolo_confidence', fruit.confidence) * 100) }}%</div>
-                                <div class="computation-weight">Weight: 0.6</div>
-                                <div class="computation-result">= {{ "%.2f"|format(fruit.get('yolo_confidence', fruit.confidence) * 0.6 * 100) }}%</div>
+                                <div class="computation-weight">Weight: 0.7</div>
+                                <div class="computation-result">= {{ "%.2f"|format(fruit.get('yolo_confidence', fruit.confidence) * 0.7 * 100) }}%</div>
                             </div>
                             <div class="computation-row">
                                 <div class="computation-label">Felix (NIR) Confidence:</div>
                                 <div class="computation-value">{{ "%.2f"|format(fruit.get('nir_confidence', 0) * 100) }}%</div>
-                                <div class="computation-weight">Weight: 0.4</div>
-                                <div class="computation-result">= {{ "%.2f"|format(fruit.get('nir_confidence', 0) * 0.4 * 100) }}%</div>
+                                <div class="computation-weight">Weight: 0.3</div>
+                                <div class="computation-result">= {{ "%.2f"|format(fruit.get('nir_confidence', 0) * 0.3 * 100) }}%</div>
                             </div>
                             <div class="computation-divider"></div>
                             <div class="computation-row computation-final">
                                 <div class="computation-label">Freshness Score:</div>
-                                <div class="computation-value-final">{{ "%.2f"|format((fruit.get('yolo_confidence', fruit.confidence) * 0.6 + fruit.get('nir_confidence', 0) * 0.4) * 100) }}%</div>
+                                <div class="computation-value-final">{{ "%.2f"|format((fruit.get('yolo_confidence', fruit.confidence) * 0.7 + fruit.get('nir_confidence', 0) * 0.3) * 100) }}%</div>
                             </div>
                         </div>
                         <div class="fruit-metadata">

@@ -352,6 +352,36 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.location.reload();
             });
         }
+
+        // Clear history button handler
+        const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+        if (clearHistoryBtn) {
+            clearHistoryBtn.addEventListener('click', function() {
+                if (!confirm('Are you sure you want to clear all scan history? This action cannot be undone.')) {
+                    return;
+                }
+
+                fetch('/api/clear-history', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('All scan history has been cleared successfully.');
+                        window.location.reload();
+                    } else {
+                        showError(data.error || 'Failed to clear history. Please try again.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error clearing history:', error);
+                    showError('An error occurred while clearing history. Please try again.');
+                });
+            });
+        }
     }
 
     // Settings interactions

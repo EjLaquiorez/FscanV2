@@ -113,20 +113,32 @@ data/datasets/Fruit_dataset/
     └── labels/           # YOLO format labels
 ```
 
-### Supported Classes (12 classes)
+### Supported Classes (15 classes)
 
-- Fresh Banana
-- Rotten Banana
-- Half-Ripe Mango
-- OverRipe Mango
-- Ripe Mango
-- Unripe Mango
-- Unripe Cashew
-- Ripe Cashew
-- OverRipe Cashew
-- Cacao Overripe
+**Banana:**
+- Banana Unripe
+- Banana Ripe
+- Banana Overripe
+
+**Mango:**
+- Mango Unripe
+- Mango Ripe
+- Mango Overripe
+
+**Cashew:**
+- Cashew Unripe
+- Cashew Ripe
+- Cashew Overripe
+
+**Cacao:**
+- Cacao Unripe
 - Cacao Ripe
-- Cacao Underripe
+- Cacao Overripe
+
+**Pineapple:**
+- Pineapple Unripe
+- Pineapple Ripe
+- Pineapple Overripe
 
 ## 🎯 Training YOLOv5n Model
 
@@ -279,6 +291,202 @@ This repository contains only the essential source code and configuration files 
 - **Dataset files** - Add your own dataset following the structure in `docs/`
 - **Database** - SQLite database will be created automatically on first run
 - **User-generated images** - Processed and uploaded images are stored locally and not tracked
+
+## 🏗️ Architecture & Classes
+
+### Core Classes
+
+#### `YOLODetector` (`models/yolo_detector.py`)
+YOLO-based fruit detection engine using Ultralytics YOLOv5n model.
+
+**Initialization:**
+```python
+detector = YOLODetector(
+    model_path: str,
+    data_yaml_path: str,
+    confidence_threshold: float = 0.25,
+    iou_threshold: float = 0.45
+)
+```
+
+**Key Methods:**
+- `detect(image_path: str) -> List[Dict]` - Detect fruits in an image, returns list of detections with bounding boxes, classes, and confidence scores
+- `save_annotated_image(input_path: str, output_path: str, detections: List[Dict]) -> None` - Save image with bounding box annotations
+- `get_class_names() -> Dict[int, str]` - Get dictionary of class ID to class name mappings
+
+**Detection Result Format:**
+```python
+{
+    'bbox': [x1, y1, x2, y2],
+    'class_id': int,
+    'class_name': str,  # e.g., "Banana Unripe", "Mango Ripe"
+    'fruit_type': str,  # e.g., "Banana", "Mango" (ripeness removed)
+    'confidence': float,
+    'quality_status': str,  # 'unripe', 'ripe', 'overripe', 'fresh', 'rotten'
+    'ripeness': str  # 'Unripe', 'Ripe', 'Overripe', 'Half-Ripe'
+}
+```
+
+**Supported Classes (15 classes):**
+- Banana: Unripe, Ripe, Overripe
+- Mango: Unripe, Ripe, Overripe
+- Cashew: Unripe, Ripe, Overripe
+- Cacao: Unripe, Ripe, Overripe
+- Pineapple: Unripe, Ripe, Overripe
+
+---
+
+#### `FusionEngine` (`models/fusion_engine.py`)
+Fuses YOLO detection results with NIR (Near-Infrared) analysis for enhanced quality assessment.
+
+**Initialization:**
+```python
+fusion_engine = FusionEngine(
+    yolo_detector: YOLODetector,
+    nir_scanner: NIRScannerBase
+)
+```
+
+**Key Methods:**
+- `fuse_detections(yolo_results: List[Dict], image_path: str) -> List[Dict]` - Fuse YOLO and NIR results for each detection
+- `set_fusion_weights(yolo_weight: float, nir_weight: float)` - Adjust fusion weights (default: YOLO=0.7, NIR=0.3)
+
+**Fusion Strategy:**
+- Weighted average: YOLO (70%) + NIR (30%)
+- Agreement checking: If YOLO and NIR agree on ripeness, confidence is boosted
+- Disagreement handling: Uses weighted decision based on confidence scores
+
+**Fused Result Format:**
+```python
+{
+    'bbox': [x1, y1, x2, y2],
+    'class_id': int,
+    'class_name': str,
+    'confidence': float,  # Overall fused confidence
+    'yolo_confidence': float,
+    'nir_confidence': float,
+    'quality_status': str,
+    'ripeness': str,
+    'yolo_ripeness': str,
+    'nir_ripeness': str,
+    'ripeness_confidence': float,
+    'nir_quality_score': float,
+    'fusion_method': str,  # 'weighted_average'
+    'agreement': str  # 'high' or 'moderate'
+}
+```
+
+---
+
+#### `NIRScannerBase` (`nir/nir_scanner.py`)
+Abstract base class for NIR scanner implementations.
+
+**Abstract Methods:**
+- `connect() -> bool` - Connect to NIR scanner device
+- `disconnect() -> None` - Disconnect from device
+- `scan(region: Optional[Tuple[int, int, int, int]] = None) -> Dict` - Perform NIR scan on region
+- `get_spectral_data() -> np.ndarray` - Get raw spectral data from last scan
+- `analyze_ripeness(spectral_data: Optional[np.ndarray] = None) -> Dict` - Analyze ripeness from spectral data
+
+**Scan Result Format:**
+```python
+{
+    'spectral_data': List[float],
+    'wavelengths': List[float],
+    'analysis': {
+        'ripeness_score': float,  # 0-1
+        'ripeness_category': str,  # 'Unripe', 'Half-Ripe', 'Ripe', 'Overripe'
+        'quality_score': float,  # 0-1
+        'sugar_content': float,  # %
+        'moisture_content': float,  # %
+        'mean_reflectance': float,
+        'std_reflectance': float,
+        'confidence': float
+    },
+    'region': Tuple[int, int, int, int]  # Optional bounding box
+}
+```
+
+#### `MockNIRScanner` (`nir/nir_scanner.py`)
+Mock implementation of NIR scanner for development and testing. Generates simulated spectral data and analysis results.
+
+#### `RealNIRScanner` (`nir/nir_scanner.py`)
+Placeholder for real NIR scanner hardware integration. Currently not implemented.
+
+**Factory Function:**
+```python
+nir_scanner = create_nir_scanner() -> NIRScannerBase
+```
+Returns `MockNIRScanner` or `RealNIRScanner` based on configuration.
+
+---
+
+#### `DatabaseHandler` (`database/db_handler.py`)
+Database operations handler supporting SQLite, PostgreSQL, and MySQL.
+
+**Initialization:**
+```python
+db_handler = DatabaseHandler(database_url: Optional[str] = None)
+```
+
+**Key Methods:**
+- `save_scan(scan_id: str, image_path: str, processed_image_path: str, results_data: Dict) -> bool` - Save scan results
+- `get_scan(scan_id: str) -> Optional[Dict]` - Retrieve scan data by ID
+- `get_all_scans(limit: int = 100, offset: int = 0) -> List[Dict]` - Get paginated list of scans
+- `delete_scan(scan_id: str) -> bool` - Delete scan from database
+- `get_statistics() -> Dict` - Get database statistics (total scans, fruits, counts by type/quality)
+- `clear_all_scans() -> bool` - Clear all scan history
+
+**Database Models:**
+
+**`Scan` Table:**
+- `id` (String, Primary Key) - Scan ID (UUID)
+- `timestamp` (DateTime) - Scan timestamp
+- `image_path` (String) - Path to original image
+- `processed_image_path` (String) - Path to annotated image
+- `results_json` (JSON) - Full results as JSON
+- `total_fruits` (Integer) - Number of fruits detected
+- `created_at` (DateTime) - Record creation time
+
+**`Fruit` Table:**
+- `id` (Integer, Primary Key) - Auto-increment ID
+- `scan_id` (String, Foreign Key) - Reference to Scan
+- `fruit_type` (String) - Fruit name (e.g., "Banana", "Mango")
+- `class_id` (Integer) - YOLO class ID
+- `class_name` (String) - Full class name (e.g., "Banana Unripe")
+- `quality_status` (String) - Quality status (unripe, ripe, overripe, fresh, rotten)
+- `ripeness` (String) - Ripeness level (Unripe, Ripe, Overripe, Half-Ripe)
+- `confidence` (Float) - Overall confidence score
+- `yolo_confidence` (Float) - YOLO detection confidence
+- `nir_confidence` (Float) - NIR analysis confidence
+- `bbox_x1, bbox_y1, bbox_x2, bbox_y2` (Float) - Bounding box coordinates
+- `nir_quality_score` (Float) - NIR quality assessment score
+- `fusion_method` (String) - Fusion method used
+- `created_at` (DateTime) - Record creation time
+
+---
+
+### Class Relationships
+
+```
+Flask App (app.py)
+    ├── YOLODetector ──┐
+    │                  ├──> FusionEngine
+    └── NIRScannerBase ┘
+    │
+    └── DatabaseHandler
+            ├── Scan (SQLAlchemy Model)
+            └── Fruit (SQLAlchemy Model)
+```
+
+**Data Flow:**
+1. User uploads image → Flask app receives request
+2. `YOLODetector.detect()` → Detects fruits using YOLO model
+3. `FusionEngine.fuse_detections()` → Combines YOLO + NIR results (if NIR enabled)
+4. `DatabaseHandler.save_scan()` → Stores results in database
+5. Results returned to user via API response
+
+---
 
 ## 📚 Documentation
 
