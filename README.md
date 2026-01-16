@@ -66,7 +66,7 @@ FscanV2/
 ```powershell
 # Create virtual environment
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.\.venv_yolo\Scripts\Activate.ps1
 
 # Install dependencies
 pip install --upgrade pip
@@ -224,10 +224,9 @@ Upload an image file to detect fruit ripeness.
     "total_fruits": 3,
     "fruits": [
       {
-        "type": "Fresh Banana",
+        "type": "Banana",
         "confidence": 0.95,
-        "quality_status": "fresh",
-        "ripeness": "Unknown",
+        "ripeness": "Ripe",
         "bbox": [x1, y1, x2, y2]
       }
     ],
@@ -249,7 +248,20 @@ View detailed results page for a scan.
 
 **GET** `/api/export/<scan_id>`
 
-Export scan results as CSV.
+Export individual scan results as a formatted text file (.txt). The report includes:
+- Scan information (ID, date, total fruits)
+- Ripeness summary statistics
+- Detailed detection results grouped by fruit type
+- Confidence scores (overall, YOLO, NIR)
+
+**GET** `/api/export-history`
+
+Export all scan history as CSV file. Includes all scans with columns:
+- Scan ID, Timestamp, Total Fruits
+- Fruit Type, Ripeness, Confidence scores
+- YOLO and NIR confidence percentages
+
+Useful for bulk data analysis in Excel or other spreadsheet applications.
 
 ## ⚙️ Configuration
 
@@ -322,7 +334,6 @@ detector = YOLODetector(
     'class_name': str,  # e.g., "Banana Unripe", "Mango Ripe"
     'fruit_type': str,  # e.g., "Banana", "Mango" (ripeness removed)
     'confidence': float,
-    'quality_status': str,  # 'unripe', 'ripe', 'overripe', 'fresh', 'rotten'
     'ripeness': str  # 'Unripe', 'Ripe', 'Overripe', 'Half-Ripe'
 }
 ```
@@ -365,7 +376,6 @@ fusion_engine = FusionEngine(
     'confidence': float,  # Overall fused confidence
     'yolo_confidence': float,
     'nir_confidence': float,
-    'quality_status': str,
     'ripeness': str,
     'yolo_ripeness': str,
     'nir_ripeness': str,
@@ -454,7 +464,6 @@ db_handler = DatabaseHandler(database_url: Optional[str] = None)
 - `fruit_type` (String) - Fruit name (e.g., "Banana", "Mango")
 - `class_id` (Integer) - YOLO class ID
 - `class_name` (String) - Full class name (e.g., "Banana Unripe")
-- `quality_status` (String) - Quality status (unripe, ripe, overripe, fresh, rotten)
 - `ripeness` (String) - Ripeness level (Unripe, Ripe, Overripe, Half-Ripe)
 - `confidence` (Float) - Overall confidence score
 - `yolo_confidence` (Float) - YOLO detection confidence
@@ -485,6 +494,119 @@ Flask App (app.py)
 3. `FusionEngine.fuse_detections()` → Combines YOLO + NIR results (if NIR enabled)
 4. `DatabaseHandler.save_scan()` → Stores results in database
 5. Results returned to user via API response
+
+---
+
+## 📊 Performance Analysis
+
+The simulated response time results suggest that the bimodal framework incurs additional computational overhead due to feature fusion. Nevertheless, the projected response time remains within acceptable limits based on simulation assumptions, indicating potential feasibility for real-time implementation.
+
+![Projected Response Time Comparison](docs/response_time_comparison.png)
+
+While the bimodal framework requires more processing time, it demonstrates superior accuracy in freshness detection. The fusion of visual and chemical features results in significantly higher confidence scores compared to using either modality independently.
+
+![Freshness Confidence Comparison](docs/confidence_comparison.png)
+
+---
+
+## 🔬 Fusion Formulation
+
+The bimodal fusion framework combines visual (YOLO) and chemical (NIR) modalities to achieve superior freshness classification. The following diagram and mathematical formulation describe how the fusion engine processes and combines these modalities.
+
+![Fusion Formulation Diagram](docs/fusion_formulation_diagram.png)
+
+### Overall Confidence Fusion
+
+The overall confidence score is computed using a weighted average of YOLO and NIR confidence scores:
+
+\[
+C_{overall} = w_{YOLO} \cdot C_{YOLO} + w_{NIR} \cdot C_{NIR}
+\]
+
+Where:
+- \(C_{overall}\) = Overall fused confidence score
+- \(C_{YOLO}\) = YOLO detection confidence (0-1)
+- \(C_{NIR}\) = NIR analysis confidence (0-1)
+- \(w_{YOLO} = 0.7\) = Weight for YOLO modality
+- \(w_{NIR} = 0.3\) = Weight for NIR modality
+- Constraint: \(w_{YOLO} + w_{NIR} = 1.0\)
+
+### Ripeness Classification Fusion
+
+The final ripeness classification is determined through a multi-stage decision process:
+
+#### Stage 1: Agreement Check
+
+First, the system checks if YOLO and NIR agree on the ripeness category:
+
+\[
+\text{Agreement} = \begin{cases}
+\text{True} & \text{if } R_{YOLO} = R_{NIR} \text{ or } |\text{Index}(R_{YOLO}) - \text{Index}(R_{NIR})| \leq 1 \\
+\text{False} & \text{otherwise}
+\end{cases}
+\]
+
+Where:
+- \(R_{YOLO}\) = YOLO ripeness category: {Unripe, Half-Ripe, Ripe, Overripe}
+- \(R_{NIR}\) = NIR ripeness category: {Unripe, Half-Ripe, Ripe, Overripe}
+- \(\text{Index}(\cdot)\) = Position in ordered set: Unripe=0, Half-Ripe=1, Ripe=2, Overripe=3
+
+#### Stage 2: Final Ripeness Decision
+
+The final ripeness classification follows these rules:
+
+**Case 1: High Agreement**
+\[
+R_{final} = R_{YOLO}
+\]
+\[
+C_{ripeness} = \min\left(1.0, \frac{C_{YOLO} + C_{NIR}}{2} + 0.1\right)
+\]
+
+When both modalities agree, the confidence is boosted by 0.1.
+
+**Case 2: YOLO High Confidence**
+\[
+\text{If } C_{YOLO} \geq 0.8: \quad R_{final} = R_{YOLO}, \quad C_{ripeness} = C_{YOLO}
+\]
+
+**Case 3: Disagreement with Weighted Decision**
+\[
+R_{final} = \begin{cases}
+R_{YOLO} & \text{if } C_{YOLO} > C_{NIR} + 0.2 \text{ or } C_{YOLO} \geq 0.7 \\
+R_{NIR} & \text{if } C_{NIR} > C_{YOLO} + 0.2 \\
+R_{YOLO} & \text{if } w_{YOLO} \cdot C_{YOLO} \geq w_{NIR} \cdot C_{NIR} \\
+R_{NIR} & \text{otherwise}
+\end{cases}
+\]
+\[
+C_{ripeness} = \frac{C_{YOLO} + C_{NIR}}{2}
+\]
+
+### Feature Fusion Summary
+
+The complete fusion process can be summarized as:
+
+\[
+\text{Fused Result} = \begin{cases}
+\text{bbox} & = \text{YOLO bounding box} \\
+\text{class\_id} & = \text{YOLO class ID} \\
+\text{class\_name} & = \text{YOLO class name} \\
+\text{confidence} & = w_{YOLO} \cdot C_{YOLO} + w_{NIR} \cdot C_{NIR} \\
+\text{ripeness} & = f(R_{YOLO}, R_{NIR}, C_{YOLO}, C_{NIR}) \\
+\text{ripeness\_confidence} & = g(\text{Agreement}, C_{YOLO}, C_{NIR}) \\
+\text{quality\_score} & = \text{NIR quality score}
+\end{cases}
+\]
+
+Where \(f(\cdot)\) and \(g(\cdot)\) represent the decision functions described in Stage 2.
+
+### Advantages of Bimodal Fusion
+
+1. **Robustness**: Combining two independent modalities reduces false positives and improves accuracy
+2. **Confidence Boost**: Agreement between modalities increases overall confidence
+3. **Adaptive Weighting**: The system adapts to modality reliability through confidence-based decisions
+4. **Quality Assessment**: NIR provides additional quality metrics (sugar content, moisture) beyond visual appearance
 
 ---
 

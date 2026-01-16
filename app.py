@@ -3,6 +3,7 @@ Main Flask application for Fruit Quality Scanner
 """
 import os
 import uuid
+import re
 from pathlib import Path
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for
@@ -30,7 +31,14 @@ except ImportError as e:
     create_nir_scanner = None
     DatabaseHandler = None
 
-app = Flask(__name__)
+# Get the directory where app.py is located
+BASE_DIR = Path(__file__).parent
+TEMPLATES_DIR = BASE_DIR / 'templates'
+STATIC_DIR = BASE_DIR / 'static'
+
+app = Flask(__name__, 
+            template_folder=str(TEMPLATES_DIR),
+            static_folder=str(STATIC_DIR))
 app.config['UPLOAD_FOLDER'] = str(UPLOAD_FOLDER)
 app.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_SIZE
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
@@ -98,6 +106,52 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def extract_fruit_name(fruit_type: str) -> str:
+    """
+    Extract just the fruit name, removing ripeness level.
+    
+    Args:
+        fruit_type: Fruit type string that may contain ripeness (e.g., "Banana Overripe", "Mango Ripe")
+    
+    Returns:
+        Fruit name only (e.g., "Banana", "Mango")
+    """
+    if not fruit_type:
+        return 'Unknown'
+    
+    # List of ripeness keywords (order matters - check longer/compound words first)
+    ripeness_keywords = ['overripe', 'over-ripe', 'half-ripe', 'half ripe', 
+                        'underripe', 'unripe', 'ripe', 'rotten', 'fresh']
+    
+    # Convert to lowercase for case-insensitive matching
+    fruit_lower = fruit_type.lower()
+    result = fruit_type
+    
+    # Try to find and remove ripeness keywords
+    for keyword in ripeness_keywords:
+        keyword_lower = keyword.lower()
+        
+        # Check if keyword exists in the string
+        if keyword_lower in fruit_lower:
+            # Remove keyword at end (with space before)
+            pattern = r'\s+' + re.escape(keyword) + r'\s*$'
+            result = re.sub(pattern, '', result, flags=re.IGNORECASE)
+            fruit_lower = result.lower()  # Update lowercase version
+            
+            # Remove keyword at start (with space after)
+            pattern = r'^\s*' + re.escape(keyword) + r'\s+'
+            result = re.sub(pattern, '', result, flags=re.IGNORECASE)
+            fruit_lower = result.lower()  # Update lowercase version
+            
+            # Remove keyword in middle (with spaces around)
+            pattern = r'\s+' + re.escape(keyword) + r'\s+'
+            result = re.sub(pattern, ' ', result, flags=re.IGNORECASE)
+            fruit_lower = result.lower()  # Update lowercase version
+    
+    # Clean up any extra spaces and return
+    result = re.sub(r'\s+', ' ', result).strip()
+    return result if result else fruit_type
+
 @app.route('/')
 def index():
     """Home page"""
@@ -141,7 +195,8 @@ def history():
                     summary_stats['latest_scan'] = formatted_timestamp
 
                 for fruit in fruits:
-                    fruit_type = fruit.get('type', 'Unknown')
+                    raw_fruit_type = fruit.get('type', 'Unknown')
+                    fruit_type = extract_fruit_name(raw_fruit_type)  # Extract just fruit name
                     ripeness = fruit.get('ripeness', 'Unknown')
                     yolo_conf = fruit.get('yolo_confidence', fruit.get('confidence', 0)) or 0
                     nir_conf = fruit.get('nir_confidence', 0) or 0
@@ -153,7 +208,6 @@ def history():
                         'raw_timestamp': timestamp,
                         'fruit_type': fruit_type,
                         'ripeness': ripeness,
-                        'quality_status': fruit.get('quality_status', 'Unknown'),
                         'freshness_score': freshness_score,
                         'yolo_confidence': yolo_conf * 100,
                         'nir_confidence': nir_conf * 100,
@@ -178,7 +232,6 @@ def history():
                 'raw_timestamp': '2025-11-20T16:45:00',
                 'fruit_type': 'Mango',
                 'ripeness': 'Ripe',
-                'quality_status': 'Fresh',
                 'freshness_score': 92.5,
                 'yolo_confidence': 95.0,
                 'nir_confidence': 88.0,
@@ -193,7 +246,6 @@ def history():
                 'raw_timestamp': '2025-11-19T10:12:00',
                 'fruit_type': 'Pineapple',
                 'ripeness': 'Unripe',
-                'quality_status': 'Ripe',
                 'freshness_score': 78.3,
                 'yolo_confidence': 82.0,
                 'nir_confidence': 72.0,
@@ -347,8 +399,7 @@ def detect():
             result_data['fruits'].append({
                 'type': fruit_type,  # Just the fruit name (e.g., "Pineapple", "Banana")
                 'confidence': result.get('confidence', 0),
-                'quality_status': result.get('quality_status', 'Unknown'),  # unripe, ripe, overripe
-                'ripeness': result.get('ripeness', 'Unknown'),  # Unripe, Ripe, Overripe
+                'ripeness': result.get('ripeness', 'Unknown'),  # Unripe, Ripe, Overripe, Half-Ripe
                 'yolo_confidence': result.get('yolo_confidence', result.get('confidence', 0)),
                 'nir_confidence': result.get('nir_confidence', 0),
                 'yolo_weight': 0.7,
@@ -399,11 +450,11 @@ def results(scan_id):
                 results_data = scan_data.get('results', {})
                 fruits = results_data.get('fruits', [])
                 
-                # Calculate statistics based on quality_status/ripeness, not fruit type
+                # Calculate statistics based on ripeness, not fruit type
                 total_fruits = len(fruits)
-                fresh_count = sum(1 for f in fruits if f.get('quality_status', '').lower() == 'fresh')
                 ripe_count = sum(1 for f in fruits if f.get('ripeness', '').lower() == 'ripe')
                 unripe_count = sum(1 for f in fruits if f.get('ripeness', '').lower() == 'unripe')
+                overripe_count = sum(1 for f in fruits if f.get('ripeness', '').lower() == 'overripe')
                 
                 # Get processed image path
                 result_image = f"/static/images/processed/{scan_id}_processed.jpg"
@@ -412,9 +463,9 @@ def results(scan_id):
                     result_image=result_image,
                     fruits=fruits,
                     total_fruits=total_fruits,
-                    fresh_count=fresh_count,
                     ripe_count=ripe_count,
-                    unripe_count=unripe_count
+                    unripe_count=unripe_count,
+                    overripe_count=overripe_count
                 )
         
         # Fallback if database not available
@@ -422,9 +473,9 @@ def results(scan_id):
             result_image="/static/images/placeholder.jpg",
             fruits=[],
             total_fruits=0,
-            fresh_count=0,
             ripe_count=0,
-            unripe_count=0
+            unripe_count=0,
+            overripe_count=0
         )
     
     except Exception as e:
@@ -433,42 +484,195 @@ def results(scan_id):
 
 @app.route('/api/export/<scan_id>')
 def export_results(scan_id):
-    """Export results as CSV"""
+    """Export individual scan results as formatted text file"""
     try:
         if db_handler:
             scan_data = db_handler.get_scan(scan_id)
             if scan_data:
-                results_data = scan_data.get('results', {})
-                fruits = results_data.get('fruits', [])
+                timestamp = scan_data.get('timestamp', 'Unknown')
+                fruits = scan_data.get('fruits', [])
+                total_fruits = len(fruits)
                 
-                # Generate CSV
-                import csv
+                # Format timestamp
+                try:
+                    if timestamp:
+                        dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                        formatted_time = dt.strftime('%B %d, %Y at %I:%M %p')
+                    else:
+                        formatted_time = 'Unknown'
+                except:
+                    formatted_time = timestamp if timestamp else 'Unknown'
+                
+                # Generate formatted text report
                 import io
                 
                 output = io.StringIO()
-                writer = csv.writer(output)
-                writer.writerow(['Fruit Type', 'Quality Status', 'Ripeness', 'Confidence (%)'])
                 
-                for fruit in fruits:
-                    writer.writerow([
-                        fruit.get('type', 'Unknown'),
-                        fruit.get('quality_status', 'Unknown'),
-                        fruit.get('ripeness', 'Unknown'),
-                        f"{fruit.get('confidence', 0) * 100:.1f}"
-                    ])
+                # Header
+                output.write("=" * 70 + "\n")
+                output.write("FRUIT QUALITY SCANNER - DETECTION REPORT\n")
+                output.write("=" * 70 + "\n\n")
+                
+                # Scan Information
+                output.write("SCAN INFORMATION\n")
+                output.write("-" * 70 + "\n")
+                output.write(f"Scan ID:        {scan_id}\n")
+                output.write(f"Scan Date:      {formatted_time}\n")
+                output.write(f"Total Fruits:   {total_fruits}\n")
+                output.write("\n")
+                
+                # Statistics
+                if fruits:
+                    ripe_count = sum(1 for f in fruits if f.get('ripeness', '').lower() == 'ripe')
+                    unripe_count = sum(1 for f in fruits if f.get('ripeness', '').lower() == 'unripe')
+                    overripe_count = sum(1 for f in fruits if f.get('ripeness', '').lower() == 'overripe')
+                    half_ripe_count = sum(1 for f in fruits if 'half' in f.get('ripeness', '').lower())
+                    
+                    output.write("RIPENESS SUMMARY\n")
+                    output.write("-" * 70 + "\n")
+                    if ripe_count > 0:
+                        output.write(f"Ripe:           {ripe_count}\n")
+                    if unripe_count > 0:
+                        output.write(f"Unripe:         {unripe_count}\n")
+                    if overripe_count > 0:
+                        output.write(f"Overripe:       {overripe_count}\n")
+                    if half_ripe_count > 0:
+                        output.write(f"Half-Ripe:      {half_ripe_count}\n")
+                    output.write("\n")
+                
+                # Detailed Results
+                output.write("DETECTED FRUITS\n")
+                output.write("-" * 70 + "\n")
+                
+                if not fruits:
+                    output.write("No fruits detected in this scan.\n")
+                else:
+                    # Group by fruit type
+                    fruit_groups = {}
+                    for fruit in fruits:
+                        fruit_type = fruit.get('type', 'Unknown')
+                        if fruit_type not in fruit_groups:
+                            fruit_groups[fruit_type] = []
+                        fruit_groups[fruit_type].append(fruit)
+                    
+                    for fruit_type, fruit_list in sorted(fruit_groups.items()):
+                        output.write(f"\n{fruit_type.upper()} ({len(fruit_list)} detected)\n")
+                        output.write("-" * 70 + "\n")
+                        
+                        for idx, fruit in enumerate(fruit_list, 1):
+                            ripeness = fruit.get('ripeness', 'Unknown')
+                            confidence = fruit.get('confidence', 0) * 100
+                            yolo_conf = fruit.get('yolo_confidence', 0) * 100 if fruit.get('yolo_confidence') else confidence
+                            nir_conf = fruit.get('nir_confidence', 0) * 100 if fruit.get('nir_confidence') else 0
+                            
+                            output.write(f"  Fruit #{idx}:\n")
+                            output.write(f"    Ripeness:        {ripeness}\n")
+                            output.write(f"    Confidence:      {confidence:.1f}%\n")
+                            if yolo_conf > 0:
+                                output.write(f"    YOLO Confidence: {yolo_conf:.1f}%\n")
+                            if nir_conf > 0:
+                                output.write(f"    NIR Confidence:  {nir_conf:.1f}%\n")
+                            output.write("\n")
+                
+                # Footer
+                output.write("=" * 70 + "\n")
+                output.write("Generated by Fruit Quality Scanner\n")
+                output.write("=" * 70 + "\n")
                 
                 output.seek(0)
                 return send_file(
-                    io.BytesIO(output.getvalue().encode()),
-                    mimetype='text/csv',
+                    io.BytesIO(output.getvalue().encode('utf-8')),
+                    mimetype='text/plain',
                     as_attachment=True,
-                    download_name=f'fruit_scan_{scan_id}.csv'
+                    download_name=f'fruit_scan_{scan_id}.txt'
                 )
         
         return jsonify({'error': 'Results not found'}), 404
     
     except Exception as e:
+        import traceback
         print(f"Error exporting results: {e}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/export-history')
+def export_history():
+    """Export all scan history as CSV"""
+    try:
+        if not db_handler:
+            return jsonify({'error': 'Database handler not available'}), 500
+        
+        scans = db_handler.get_all_scans(limit=10000)  # Get all scans
+        
+        if not scans:
+            return jsonify({'error': 'No scan history found'}), 404
+        
+        # Generate CSV
+        import csv
+        import io
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # CSV Header
+        writer.writerow([
+            'Scan ID',
+            'Timestamp',
+            'Total Fruits',
+            'Fruit Type',
+            'Ripeness',
+            'Confidence (%)',
+            'YOLO Confidence (%)',
+            'NIR Confidence (%)'
+        ])
+        
+        # Write data rows
+        for scan in scans:
+            scan_id = scan.get('scan_id')
+            scan_details = db_handler.get_scan(scan_id)
+            
+            if scan_details:
+                timestamp = scan_details.get('timestamp', '')
+                fruits = scan_details.get('fruits', [])
+                total_fruits = len(fruits)
+                
+                if fruits:
+                    for fruit in fruits:
+                        writer.writerow([
+                            scan_id,
+                            timestamp,
+                            total_fruits,
+                            fruit.get('type', 'Unknown'),
+                            fruit.get('ripeness', 'Unknown'),
+                            f"{fruit.get('confidence', 0) * 100:.1f}" if fruit.get('confidence') else '',
+                            f"{fruit.get('yolo_confidence', 0) * 100:.1f}" if fruit.get('yolo_confidence') else '',
+                            f"{fruit.get('nir_confidence', 0) * 100:.1f}" if fruit.get('nir_confidence') else ''
+                        ])
+                else:
+                    # Write scan with no fruits
+                    writer.writerow([
+                        scan_id,
+                        timestamp,
+                        0,
+                        '',
+                        '',
+                        '',
+                        '',
+                        ''
+                    ])
+        
+        output.seek(0)
+        return send_file(
+            io.BytesIO(output.getvalue().encode('utf-8')),
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=f'fruit_scanner_history_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        )
+    
+    except Exception as e:
+        import traceback
+        print(f"Error exporting history: {e}")
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/clear-history', methods=['POST'])

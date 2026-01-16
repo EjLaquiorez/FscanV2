@@ -138,7 +138,7 @@ class DatabaseHandler:
                     fruit_type=fruit_data.get('type', 'Unknown'),
                     class_id=result.get('class_id'),
                     class_name=fruit_data.get('type', 'Unknown'),
-                    quality_status=fruit_data.get('quality_status', 'unknown'),
+                    quality_status=None,  # Deprecated - kept for backward compatibility
                     ripeness=fruit_data.get('ripeness', 'Unknown'),
                     confidence=fruit_data.get('confidence', 0.0),
                     yolo_confidence=result.get('yolo_confidence', fruit_data.get('confidence', 0.0)),
@@ -200,7 +200,6 @@ class DatabaseHandler:
                     {
                         'type': f.fruit_type,
                         'class_id': f.class_id,
-                        'quality_status': f.quality_status,
                         'ripeness': f.ripeness,
                         'confidence': f.confidence,
                         'yolo_confidence': f.yolo_confidence,
@@ -308,12 +307,13 @@ class DatabaseHandler:
             for fruit_type, count in fruit_types:
                 type_counts[fruit_type] = count
             
-            # Count by quality status
-            quality_counts = {}
-            quality_statuses = session.query(Fruit.quality_status).distinct().all()
-            for (status,) in quality_statuses:
-                count = session.query(Fruit).filter(Fruit.quality_status == status).count()
-                quality_counts[status] = count
+            # Count by ripeness
+            ripeness_counts = {}
+            ripeness_levels = session.query(Fruit.ripeness).distinct().all()
+            for (ripeness,) in ripeness_levels:
+                if ripeness:
+                    count = session.query(Fruit).filter(Fruit.ripeness == ripeness).count()
+                    ripeness_counts[ripeness] = count
             
             session.close()
             
@@ -321,7 +321,7 @@ class DatabaseHandler:
                 'total_scans': total_scans,
                 'total_fruits': total_fruits,
                 'fruit_type_counts': type_counts,
-                'quality_status_counts': quality_counts
+                'ripeness_counts': ripeness_counts
             }
         
         except Exception as e:
@@ -332,7 +332,7 @@ class DatabaseHandler:
                 'total_scans': 0,
                 'total_fruits': 0,
                 'fruit_type_counts': {},
-                'quality_status_counts': {}
+                'ripeness_counts': {}
             }
     
     def clear_all_scans(self) -> bool:

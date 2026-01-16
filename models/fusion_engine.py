@@ -79,7 +79,6 @@ class FusionEngine:
         # Extract YOLO information
         yolo_class = yolo_detection.get('class_name', 'Unknown')
         yolo_confidence = yolo_detection.get('confidence', 0.5)
-        yolo_quality = yolo_detection.get('quality_status', 'unknown')
         yolo_ripeness = yolo_detection.get('ripeness', 'Unknown')
         
         # Extract NIR information
@@ -111,9 +110,6 @@ class FusionEngine:
             final_ripeness = self._combine_ripeness(yolo_ripeness, nir_ripeness, yolo_confidence, nir_confidence)
             ripeness_confidence = (yolo_confidence + nir_confidence) / 2
         
-        # Fuse quality status
-        final_quality = self._fuse_quality_status(yolo_quality, nir_quality_score, yolo_confidence, nir_confidence)
-        
         # Calculate overall confidence (weighted average)
         overall_confidence = (yolo_confidence * self.yolo_weight + nir_confidence * self.nir_weight)
         
@@ -125,7 +121,6 @@ class FusionEngine:
             'confidence': overall_confidence,
             'yolo_confidence': yolo_confidence,
             'nir_confidence': nir_confidence,
-            'quality_status': final_quality,
             'ripeness': final_ripeness,
             'yolo_ripeness': yolo_ripeness,
             'nir_ripeness': nir_ripeness,
@@ -222,48 +217,6 @@ class FusionEngine:
                 return yolo_ripeness
             else:
                 return nir_ripeness
-    
-    def _fuse_quality_status(self, yolo_quality: str, nir_quality_score: float,
-                            yolo_conf: float, nir_conf: float) -> str:
-        """
-        Fuse quality status from YOLO and NIR
-        
-        Args:
-            yolo_quality: YOLO quality status
-            nir_quality_score: NIR quality score (0-1)
-            yolo_conf: YOLO confidence
-            nir_conf: NIR confidence
-        
-        Returns:
-            Fused quality status
-        """
-        # Map NIR quality score to status
-        if nir_quality_score >= 0.8:
-            nir_quality = 'fresh'
-        elif nir_quality_score >= 0.6:
-            nir_quality = 'ripe'
-        elif nir_quality_score >= 0.4:
-            nir_quality = 'unripe'
-        else:
-            nir_quality = 'overripe'
-        
-        # Combine with YOLO quality
-        # If both agree, use that
-        if yolo_quality == nir_quality:
-            return yolo_quality
-        
-        # If disagree, use weighted decision
-        combined_score = (nir_quality_score * self.nir_weight + 
-                         (0.8 if yolo_quality == 'fresh' else 0.6 if yolo_quality == 'ripe' else 0.4) * self.yolo_weight)
-        
-        if combined_score >= 0.75:
-            return 'fresh'
-        elif combined_score >= 0.55:
-            return 'ripe'
-        elif combined_score >= 0.35:
-            return 'unripe'
-        else:
-            return 'overripe'
     
     def set_fusion_weights(self, yolo_weight: float, nir_weight: float):
         """

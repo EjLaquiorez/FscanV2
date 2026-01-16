@@ -425,7 +425,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Export results function
+    // Export results function (individual scan as .txt)
     function exportResults() {
         // Get current URL to extract scan ID
         const pathParts = window.location.pathname.split('/');
@@ -444,7 +444,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `fruit_scan_${scanId}.csv`;
+            a.download = `fruit_scan_${scanId}.txt`;
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
@@ -453,6 +453,41 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             showError('Could not export results.');
             console.error('Error:', error);
+        });
+    }
+
+    // Export history function (all scans as CSV)
+    function exportHistory() {
+        fetch('/api/export-history', {
+            method: 'GET'
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Export failed.');
+            }
+            return response.blob();
+        })
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `fruit_scanner_history_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        })
+        .catch(error => {
+            showError('Could not export history.');
+            console.error('Error:', error);
+        });
+    }
+
+    // Export history button handler
+    const exportHistoryBtn = document.getElementById('exportHistoryBtn');
+    if (exportHistoryBtn) {
+        exportHistoryBtn.addEventListener('click', function() {
+            exportHistory();
         });
     }
 });

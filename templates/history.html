@@ -28,6 +28,7 @@
                     <div class="history-actions">
                         <a href="/" class="btn btn-secondary">New Scan</a>
                         <button class="btn btn-primary" id="historyRefreshBtn">Refresh</button>
+                        <button class="btn btn-success" id="exportHistoryBtn">Export History (CSV)</button>
                         <button class="btn btn-danger" id="clearHistoryBtn">Clear History</button>
                     </div>
                 </div>
@@ -117,7 +118,7 @@
                                     </div>
                                 </td>
                                 <td>
-                                    <span class="quality-badge quality-{{ entry.quality_status|lower }}">{{ entry.ripeness }}</span>
+                                    <span class="quality-badge quality-{{ entry.ripeness|lower }}">{{ entry.ripeness }}</span>
                                 </td>
                                 <td>
                                     <span class="metric-pill">{{ "%.1f"|format(entry.freshness_score) }}%</span>
@@ -130,7 +131,7 @@
                                 <td>
                                     <div class="history-actions">
                                         <a href="/results/{{ entry.scan_id }}" class="btn btn-info btn-small">View</a>
-                                        <a href="/api/export/{{ entry.scan_id }}" class="btn btn-secondary btn-small">Export</a>
+                                        <a href="/api/export/{{ entry.scan_id }}" class="btn btn-secondary btn-small" download>Export (.txt)</a>
                                     </div>
                                 </td>
                             </tr>

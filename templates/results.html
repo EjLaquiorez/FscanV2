@@ -76,7 +76,7 @@
                                 <tr data-fruit-index="{{ loop.index0 }}">
                                     <td>{{ display_type }}</td>
                                     <td>
-                                        <span class="quality-badge quality-{{ fruit.quality_status }}">{{ fruit.ripeness }}</span>
+                                        <span class="quality-badge quality-{{ fruit.ripeness|lower }}">{{ fruit.ripeness }}</span>
                                     </td>
                                     <td>{{ "%.1f"|format(fruit.confidence * 100) }}%</td>
                                 </tr>

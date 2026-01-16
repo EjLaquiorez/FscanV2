@@ -167,8 +167,8 @@ class YOLODetector:
                             class_name = f"Class_{class_id}"
                         print(f"Warning: Class ID {class_id} not found in class_names, using: {class_name}")
                     
-                    # Determine quality status and ripeness from class name
-                    quality_status, ripeness = self._parse_quality_status(class_name)
+                    # Determine ripeness from class name
+                    ripeness = self._parse_ripeness(class_name)
                     
                     # Extract fruit type (remove ripeness from class name)
                     fruit_type = self._extract_fruit_type(class_name)
@@ -179,57 +179,45 @@ class YOLODetector:
                         'class_name': class_name,
                         'fruit_type': fruit_type,  # Just the fruit name (e.g., "Pineapple", "Banana")
                         'confidence': confidence,
-                        'quality_status': quality_status,  # unripe, ripe, overripe
-                        'ripeness': ripeness  # Unripe, Ripe, Overripe
+                        'ripeness': ripeness  # Unripe, Ripe, Overripe, Half-Ripe
                     }
                     
                     detections.append(detection)
         
         return detections
     
-    def _parse_quality_status(self, class_name: str) -> Tuple[str, str]:
+    def _parse_ripeness(self, class_name: str) -> str:
         """
-        Parse quality status and ripeness from class name
+        Parse ripeness from class name
         New format: "{Fruit} {Ripeness}" (e.g., "Banana Unripe", "Mango Ripe")
         
         Args:
             class_name: Name of the detected class
             
         Returns:
-            Tuple of (quality_status, ripeness)
+            Ripeness level string (Unripe, Ripe, Overripe, Half-Ripe)
         """
         class_lower = class_name.lower()
-        
-        # Extract fruit type and ripeness level
-        # Format is: "{Fruit} {Ripeness}" or old format variations
-        parts = class_name.split()
         
         # Determine ripeness from class name
         if 'unripe' in class_lower:
             ripeness = 'Unripe'
-            quality_status = 'unripe'
         elif 'overripe' in class_lower or 'over-ripe' in class_lower:
             ripeness = 'Overripe'
-            quality_status = 'overripe'
         elif 'ripe' in class_lower:
             # Check if it's "half-ripe" or just "ripe"
             if 'half-ripe' in class_lower or 'half ripe' in class_lower:
                 ripeness = 'Half-Ripe'
-                quality_status = 'ripe'
             else:
                 ripeness = 'Ripe'
-                quality_status = 'ripe'
         elif 'rotten' in class_lower:
             ripeness = 'Overripe'  # Treat rotten as overripe
-            quality_status = 'rotten'
         elif 'fresh' in class_lower:
             ripeness = 'Ripe'  # Treat fresh as ripe
-            quality_status = 'fresh'
         else:
             ripeness = 'Unknown'
-            quality_status = 'unknown'
         
-        return quality_status, ripeness
+        return ripeness
     
     def _extract_fruit_type(self, class_name: str) -> str:
         """
@@ -311,21 +299,21 @@ class YOLODetector:
             x1, y1, x2, y2 = detection['bbox']
             class_name = detection['class_name']
             confidence = detection['confidence']
-            quality_status = detection['quality_status']
+            ripeness = detection.get('ripeness', 'Unknown')
             
             # Convert to integers
             x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
             
-            # Choose color based on quality status
+            # Choose color based on ripeness
+            ripeness_lower = ripeness.lower()
             color_map = {
-                'fresh': (0, 255, 0),      # Green
                 'ripe': (255, 255, 0),      # Yellow
                 'unripe': (0, 255, 255),    # Cyan
                 'overripe': (0, 165, 255),  # Orange
-                'rotten': (0, 0, 255),      # Red
-                'unknown': (128, 128, 128)  # Gray
+                'half-ripe': (255, 200, 0), # Light yellow-orange
+                'unknown': (128, 128, 128)   # Gray
             }
-            color = color_map.get(quality_status, (128, 128, 128))
+            color = color_map.get(ripeness_lower, (128, 128, 128))
             
             # Draw bounding box
             cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
