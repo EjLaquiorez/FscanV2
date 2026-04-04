@@ -95,9 +95,10 @@ FUSION_WEIGHTS = {
     'conflict_boost_chem': 0.4    # When Chemical >> YOLO (conservative)
 }
 
-# Classification Thresholds (Thesis Table 3.3.4)
+# Classification thresholds — fusion score F(t) → three ripeness labels only:
+# Unripe, Ripe, Overripe (thesis high band labeled “Fresh” maps to Unripe here)
 FRESHNESS_THRESHOLDS = {
-    'fresh': 0.80,      # F(t) >= 0.80
-    'ripe': 0.65,       # 0.65 <= F(t) < 0.80
-    'overripe': 0.00    # F(t) < 0.65
+    'unripe': 0.80,     # F(t) >= 0.80 → Unripe
+    'ripe': 0.65,       # 0.65 <= F(t) < 0.80 → Ripe
+    'overripe': 0.00    # F(t) < 0.65 → Overripe (floor sentinel)
 }

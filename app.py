@@ -102,11 +102,11 @@ class Config:
         'conflict_chem_boost': 0.4     # When Chemical >> YOLO
     }
     
-    # Classification Thresholds (Thesis Table 3.3.4)
+    # Classification thresholds — Unripe / Ripe / Overripe only (see config.FRESHNESS_THRESHOLDS)
     FRESHNESS_THRESHOLDS = {
-        'fresh': 0.80,      # F(t) >= 0.80
-        'ripe': 0.65,       # 0.65 <= F(t) < 0.80
-        'overripe': 0.00    # F(t) < 0.65
+        'unripe': 0.80,     # F(t) >= 0.80 → Unripe
+        'ripe': 0.65,       # 0.65 <= F(t) < 0.80 → Ripe
+        'overripe': 0.00    # F(t) < 0.65 → Overripe
     }
     
     # Flask settings
@@ -404,8 +404,8 @@ def settings():
         'chemical_weight': config.FUSION_WEIGHTS['beta_chemical'],
         'conflict_threshold': config.SIMULATION_PARAMS['conflict_threshold'],
         'classification_thresholds': {
-            'fresh': f">= {config.FRESHNESS_THRESHOLDS['fresh']}",
-            'ripe': f"{config.FRESHNESS_THRESHOLDS['ripe']} - {config.FRESHNESS_THRESHOLDS['fresh']}",
+            'unripe': f">= {config.FRESHNESS_THRESHOLDS['unripe']}",
+            'ripe': f"{config.FRESHNESS_THRESHOLDS['ripe']} - {config.FRESHNESS_THRESHOLDS['unripe']}",
             'overripe': f"< {config.FRESHNESS_THRESHOLDS['ripe']}"
         }
     }
@@ -578,8 +578,8 @@ def detect():
                     'chemical': config.FUSION_WEIGHTS['beta_chemical']
                 },
                 'classification_thresholds': {
-                    'fresh': f">= {config.FRESHNESS_THRESHOLDS['fresh']}",
-                    'ripe': f"{config.FRESHNESS_THRESHOLDS['ripe']} - {config.FRESHNESS_THRESHOLDS['fresh']}",
+                    'unripe': f">= {config.FRESHNESS_THRESHOLDS['unripe']}",
+                    'ripe': f"{config.FRESHNESS_THRESHOLDS['ripe']} - {config.FRESHNESS_THRESHOLDS['unripe']}",
                     'overripe': f"< {config.FRESHNESS_THRESHOLDS['ripe']}"
                 },
                 'input_conditions': {
@@ -638,8 +638,8 @@ def sensitivity_test():
         
         # Baseline simulation
         baseline = chemical_simulator.simulate(fruit_type, base_hours, base_temp)
-        # Tier thresholds match fusion _classify_freshness (applied here to proxy-only stability)
-        baseline_class = fusion_engine._classify_freshness(baseline.normalized_proxy) if fusion_engine else 'Unknown'
+        # Tier thresholds match fusion _classify_ripeness (applied here to proxy-only stability)
+        baseline_class = fusion_engine._classify_ripeness(baseline.normalized_proxy) if fusion_engine else 'Unknown'
         
         # Test variations (±20%)
         variations = []
@@ -668,7 +668,7 @@ def sensitivity_test():
                 noise_scale=noise_f,
             )
             sp = result.simulation_params
-            test_class = fusion_engine._classify_freshness(result.normalized_proxy) if fusion_engine else 'Unknown'
+            test_class = fusion_engine._classify_ripeness(result.normalized_proxy) if fusion_engine else 'Unknown'
             stable = (test_class == baseline_class)
             
             variations.append({
@@ -783,12 +783,13 @@ def results(scan_id):
                 total_fruits = len(fruits)
                 def _rlabel(f):
                     return (f.get('ripeness') or '').strip().lower()
-                fresh_count = sum(1 for f in fruits if _rlabel(f) == 'fresh')
+                # Three labels only: Unripe, Ripe, Overripe (legacy "Fresh" counts as Unripe)
+                unripe_count = sum(
+                    1 for f in fruits
+                    if _rlabel(f) in ('unripe', 'underripe', 'fresh')
+                )
                 ripe_count = sum(1 for f in fruits if _rlabel(f) == 'ripe')
                 overripe_count = sum(1 for f in fruits if _rlabel(f) == 'overripe')
-                legacy_unripe = sum(1 for f in fruits if _rlabel(f) in ('unripe', 'underripe'))
-                if legacy_unripe and fresh_count == 0:
-                    fresh_count = legacy_unripe
                 
                 result_image = f"/static/images/processed/{scan_id}_processed.jpg"
                 
@@ -796,7 +797,7 @@ def results(scan_id):
                     result_image=result_image,
                     fruits=fruits,
                     total_fruits=total_fruits,
-                    fresh_count=fresh_count,
+                    unripe_count=unripe_count,
                     ripe_count=ripe_count,
                     overripe_count=overripe_count,
                     trl_disclaimer='TRL 3 Simulation - Chemical data mathematically modeled'
@@ -806,7 +807,7 @@ def results(scan_id):
             result_image="/static/images/placeholder.jpg",
             fruits=[],
             total_fruits=0,
-            fresh_count=0,
+            unripe_count=0,
             ripe_count=0,
             overripe_count=0
         )

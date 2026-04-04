@@ -296,21 +296,36 @@ class YOLODetector:
         
         # Draw bounding boxes
         for detection in detections:
-            x1, y1, x2, y2 = detection['bbox']
-            class_name = detection['class_name']
-            confidence = detection['confidence']
-            ripeness = detection.get('ripeness', 'Unknown')
+            bbox = detection.get('bbox') or detection.get('box') or [0, 0, 0, 0]
+            if len(bbox) < 4:
+                bbox = list(bbox) + [0] * (4 - len(bbox))
+            x1, y1, x2, y2 = bbox[:4]
+            # Raw YOLO uses class_name/confidence; FusionEngine uses yolo_class / fusion_score
+            class_name = (
+                detection.get('class_name')
+                or detection.get('yolo_class')
+                or detection.get('fruit_type')
+                or 'unknown'
+            )
+            confidence = detection.get('confidence')
+            if confidence is None:
+                confidence = detection.get(
+                    'fusion_score',
+                    detection.get('yolo_confidence', detection.get('visual_confidence', 0.0)),
+                )
+            ripeness = detection.get('ripeness') or detection.get('classification', 'Unknown')
             
             # Convert to integers
             x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
             
             # Choose color based on ripeness
-            ripeness_lower = ripeness.lower()
+            ripeness_lower = str(ripeness).lower()
             color_map = {
                 'ripe': (255, 255, 0),      # Yellow
                 'unripe': (0, 255, 255),    # Cyan
                 'overripe': (0, 165, 255),  # Orange
                 'half-ripe': (255, 200, 0), # Light yellow-orange
+                'fresh': (0, 255, 255),     # Legacy label → same as Unripe
                 'unknown': (128, 128, 128)   # Gray
             }
             color = color_map.get(ripeness_lower, (128, 128, 128))

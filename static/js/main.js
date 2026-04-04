@@ -719,9 +719,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // Determine badge color
                     let badgeColor = '#6c757d';
-                    if (ripeness.toLowerCase() === 'ripe') badgeColor = '#ffc107';
-                    else if (ripeness.toLowerCase() === 'unripe') badgeColor = '#17a2b8';
-                    else if (ripeness.toLowerCase() === 'overripe') badgeColor = '#dc3545';
+                    const r = ripeness.toLowerCase();
+                    if (r === 'ripe') badgeColor = '#ffc107';
+                    else if (r === 'unripe' || r === 'fresh') badgeColor = '#17a2b8';
+                    else if (r === 'overripe') badgeColor = '#dc3545';
                     
                     resultsHTML += `
                         <div style="display: grid; grid-template-columns: 2fr 1.5fr 1fr; gap: 12px; align-items: center; padding: 10px 12px; border-bottom: 1px solid #e9ecef; font-size: 0.8125rem;">

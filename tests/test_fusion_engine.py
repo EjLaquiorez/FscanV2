@@ -30,8 +30,9 @@ def test_batch_fuse_mismatched_lengths_raises():
         fe.batch_fuse([{"confidence": 0.5}], [])
 
 
-def test_classify_freshness_bins():
+def test_classify_ripeness_three_bins():
     fe = FusionEngine()
-    assert fe._classify_freshness(0.85) == "Fresh"
-    assert fe._classify_freshness(0.70) == "Ripe"
-    assert fe._classify_freshness(0.50) == "Overripe"
+    assert fe._classify_ripeness(0.85) == "Unripe"
+    assert fe._classify_ripeness(0.70) == "Ripe"
+    assert fe._classify_ripeness(0.50) == "Overripe"
+    assert fe._classify_freshness(0.85) == "Unripe"  # alias

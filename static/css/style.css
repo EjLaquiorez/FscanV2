@@ -569,9 +569,9 @@ main {
     color: white;
 }
 
-/* Legacy support (deprecated) */
+/* Legacy rows if DB still stores "Fresh" — match Unripe */
 .quality-fresh {
-    background: #28a745;
+    background: #17a2b8;
     color: white;
 }
 

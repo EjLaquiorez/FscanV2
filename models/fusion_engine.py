@@ -6,6 +6,8 @@ import numpy as np
 from typing import Dict, List
 from dataclasses import asdict
 
+from config import FRESHNESS_THRESHOLDS
+
 
 class FusionEngine:
     """
@@ -64,7 +66,7 @@ class FusionEngine:
         
         # Classification using thesis thresholds (Table 3.3.4)
         # Note: These can be overridden per-fruit in batch processing
-        classification = self._classify_freshness(F_t)
+        classification = self._classify_ripeness(F_t)
         
         return {
             'fusion_score': float(F_t),
@@ -84,19 +86,23 @@ class FusionEngine:
             }
         }
     
-    def _classify_freshness(self, fusion_score: float) -> str:
+    def _classify_ripeness(self, fusion_score: float) -> str:
         """
-        Thesis Table 3.3.4 thresholds:
-        Fresh: F(t) ≥ 0.80
-        Ripe (Optimal): 0.65 ≤ F(t) < 0.80  
-        Overripe/Spoiled: F(t) < 0.65
+        Three-way ripeness (matches YOLO class naming: Unripe / Ripe / Overripe).
+        Uses FRESHNESS_THRESHOLDS from config (same numeric cutoffs as thesis Table 3.3.4;
+        thesis “Fresh” band is labeled Unripe in this project).
         """
-        if fusion_score >= 0.80:
-            return 'Fresh'
-        elif fusion_score >= 0.65:
+        hi = float(FRESHNESS_THRESHOLDS['unripe'])
+        lo = float(FRESHNESS_THRESHOLDS['ripe'])
+        if fusion_score >= hi:
+            return 'Unripe'
+        if fusion_score >= lo:
             return 'Ripe'
-        else:
-            return 'Overripe'
+        return 'Overripe'
+
+    def _classify_freshness(self, fusion_score: float) -> str:
+        """Alias for backward compatibility; prefer _classify_ripeness."""
+        return self._classify_ripeness(fusion_score)
     
     def batch_fuse(self, yolo_results: List[Dict], 
                    chemical_readings: List) -> List[Dict]:
@@ -133,12 +139,15 @@ class FusionEngine:
             )
             
             # Merge all information
+            yolo_name = yolo_det.get('class_name', 'unknown')
             merged_result = {
                 # Original detection data
                 'bbox': yolo_det.get('bbox', yolo_det.get('box', [])),
                 'fruit_type': fruit_type,
+                'class_name': yolo_name,
+                'confidence': yolo_det.get('confidence', 0),
                 'yolo_confidence': yolo_det.get('confidence', 0),
-                'yolo_class': yolo_det.get('class_name', 'unknown'),
+                'yolo_class': yolo_name,
                 
                 # Fusion results
                 **fusion_result,
