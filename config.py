@@ -3,10 +3,13 @@ Configuration settings for Fruit Quality Scanner application
 """
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # Allows importing this module before `pip install python-dotenv`
+    pass
 
 # Base directory
 BASE_DIR = Path(__file__).parent
@@ -58,7 +61,11 @@ MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', '')
 
 # Database URL construction
 if DATABASE_TYPE == 'postgresql':
-    DATABASE_URL = f'postgresql://{POSTGRESQL_USER}:{POSTGRESQL_PASSWORD}@{POSTGRESQL_HOST}:{POSTGRESQL_PORT}/{POSTGRESQL_DB}'
+    # SQLAlchemy dialect for psycopg v3 (see requirements.txt psycopg[binary])
+    DATABASE_URL = (
+        f'postgresql+psycopg://{POSTGRESQL_USER}:{POSTGRESQL_PASSWORD}'
+        f'@{POSTGRESQL_HOST}:{POSTGRESQL_PORT}/{POSTGRESQL_DB}'
+    )
 elif DATABASE_TYPE == 'mysql':
     DATABASE_URL = f'mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DB}'
 else:

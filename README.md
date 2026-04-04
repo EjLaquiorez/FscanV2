@@ -1,13 +1,37 @@
 # FscanV2 — Fruit Quality Scanner
 
-A professional fruit ripeness detection application using YOLOv5n deep learning model. This application can identify and classify fruit ripeness levels (fresh, ripe, unripe, overripe, rotten) for various fruits including bananas, mangoes, cashews, and cacao.
+A fruit ripeness detection web application built around a **FELIX-inspired bimodal framework** at **Technology Readiness Level 3 (TRL 3)**.
+
+- **Visual modality:** Ultralyics YOLO detection (e.g. YOLOv5n / class set in `data.yaml`).
+- **Chemical modality (simulated):** No physical gas or NIR hardware in this build. The app uses a **mathematical chemical simulator** (ethylene dynamics \(E(t)=E_0 e^{kt}\), environmental drift, and NIR-style proxy signals) described in `models/chemical_simulator.py`.
+- **Fusion:** **Late fusion** at decision level—default weights **0.7 visual / 0.3 chemical**, with **conflict resolution** when visual confidence and the normalized chemical proxy disagree beyond a threshold \(\delta\) (see `models/fusion_engine.py` and the Settings page).
+
+**Important:** All chemical sensing outputs are **simulated**. The UI and API may still expose a field named `nir_confidence` for compatibility; in the TRL 3 pipeline it carries the **normalized chemical proxy** \(\hat{E}(t)\in[0,1]\), not data from a real spectrometer.
+
+---
+
+## TRL 3 implementation snapshot
+
+| Area | Location / behavior |
+|------|---------------------|
+| Flask app, detect pipeline, TRL disclaimer in API | `app.py` |
+| Inline app config (paths, simulation, fusion, freshness thresholds) | `Config` in `app.py` |
+| Shared env / DB URL / simulation constants for DB layer | `config.py` |
+| Chemical simulation (`ChemicalSimulator`, `ChemicalReading`) | `models/chemical_simulator.py` |
+| Late fusion + batch fuse + freshness labels | `models/fusion_engine.py` |
+| Bootstrap CI, McNemar (thesis-style validation helpers) | `utils/statistical_validator.py` *(requires `scikit-learn` if you use it)* |
+| Per-class performance charts from training outputs | `scripts/generate_per_class_performance.py` |
+
+Detection flow: upload → YOLO → per-detection chemical readings → `FusionEngine.batch_fuse` → annotated image + JSON (including `chemical_data`, `fusion_details`, `simulation_metadata`, `trl_disclaimer`).
+
+---
 
 ## 📁 Repository Structure
 
 ```
 FscanV2/
-├── app.py                 # Main Flask application
-├── config.py              # Configuration settings
+├── app.py                 # Main Flask app (TRL 3 bimodal pipeline)
+├── config.py              # Environment, DB URL, TRL simulation constants
 ├── requirements.txt       # Python dependencies
 │
 ├── docs/                  # Documentation
@@ -17,82 +41,83 @@ FscanV2/
 │   └── README_SETUP.md
 │
 ├── scripts/               # Utility scripts
-│   ├── auto_label_dataset.py    # Auto-label images for YOLO
-│   ├── train_yolov5.py          # YOLOv5n training script
-│   ├── run_app.bat              # Windows batch script to run app
-│   ├── run_app.ps1              # PowerShell script to run app
+│   ├── auto_label_dataset.py
+│   ├── train_yolov5.py
+│   ├── generate_per_class_performance.py  # Per-class metrics charts
+│   ├── run_app.bat
+│   ├── run_app.ps1
 │   └── optimize_gpu_performance.bat
 │
-├── data/                  # Data and models (git-ignored)
-│   ├── datasets/
-│   │   └── Fruit_dataset/        # YOLO dataset structure
-│   │       ├── data.yaml
-│   │       ├── classes.txt
-│   │       ├── train/
-│   │       ├── val/
-│   │       └── test/
-│   └── models/
-│       └── yolov5n/              # Trained YOLOv5n models
-│           └── Datasets YOLOv5n/
-│               ├── runs/
-│               └── yolov5nu.pt
+├── data/                  # Data and models (often git-ignored)
+│   ├── datasets/Fruit_dataset/
+│   └── models/yolov5n/runs/...
 │
-├── models/                # Application models (source code)
+├── models/                # Application logic (not only weights)
 │   ├── yolo_detector.py
-│   └── fusion_engine.py
+│   ├── chemical_simulator.py   # TRL 3 synthetic chemical / proxy signals
+│   └── fusion_engine.py        # Late fusion + conflict handling
 │
-├── database/              # Database handlers
+├── utils/
+│   └── statistical_validator.py
+│
+├── database/
 │   └── db_handler.py
 │
-├── nir/                   # NIR scanner integration
+├── nir/                   # Optional NIR scanner abstractions (mock/real stubs)
 │   └── nir_scanner.py
 │
-├── static/                # Static web assets
-│   ├── css/
-│   ├── js/
-│   └── images/
-│
-├── templates/             # HTML templates
-│   ├── index.html
-│   └── results.html
-│
-└── tests/                 # Unit tests (to be implemented)
+├── static/                # css/, js/, images/
+├── templates/             # index, results, history, settings, ...
+└── tests/                 # (to be expanded)
 ```
+
+**Weights path:** `app.py` expects the trained checkpoint at `models/weights/best.pt` and `data.yaml` at the repo root (see `Config` in `app.py`). If your layout differs, update those paths or align files accordingly.
+
+---
 
 ## 🚀 Quick Start
 
 ### 1. Environment Setup
 
 ```powershell
-# Create virtual environment
-python -m venv .venv
-.\.venv_yolo\Scripts\Activate.ps1
+cd "path\to\FscanV2"
 
-# Install dependencies
-pip install --upgrade pip
+# Create and activate virtual environment (name can be .venv or .venv_yolo)
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 
-# Optional: Install CUDA PyTorch for GPU support
+# Optional: CUDA PyTorch
 # pip install --index-url https://download.pytorch.org/whl/cu121 torch torchvision torchaudio
 ```
 
+**Dependency notes**
+
+- **SQLAlchemy:** `requirements.txt` pins `sqlalchemy>=2.0.36` because older 2.0.x releases fail on **Python 3.14+** during import.
+- **PostgreSQL:** the project uses **`psycopg` v3** (`psycopg[binary]` in `requirements.txt`), which ships wheels for recent Python versions including **3.14**. The DB URL uses the `postgresql+psycopg://` dialect in `config.py`. Default `DATABASE_TYPE` is still **sqlite** for local runs.
+- **Statistical utilities:** To run or import `utils/statistical_validator.py`, install **`scikit-learn`** (not required for the main scan endpoint).
+
+The legacy script `scripts/run_app.ps1` looks for a venv named **`.venv_yolo`**. Either create/rename your venv to match or run `python app.py` from an activated `.venv` as above.
+
 ### 2. Run the Application
 
-**Option A: Using provided scripts**
-```powershell
-# PowerShell
-.\scripts\run_app.ps1
+**Option A: PowerShell / batch scripts** (expects `.venv_yolo` unless you edit the script)
 
-# Or Windows Batch
+```powershell
+.\scripts\run_app.ps1
+# or
 .\scripts\run_app.bat
 ```
 
-**Option B: Direct Python**
+**Option B: Direct Python (after activating `.venv`)**
+
 ```powershell
 python app.py
 ```
 
-The application will be available at `http://localhost:5000`
+The application listens on **`http://localhost:5000`** (and `0.0.0.0:5000` if configured).
 
 ## 📊 Dataset Structure
 
@@ -166,6 +191,14 @@ yolo task=detect mode=train \
 
 Training outputs are saved to `data/models/yolov5n/Datasets YOLOv5n/runs/train/`
 
+### Per-class performance charts
+
+`scripts/generate_per_class_performance.py` builds a **per-class performance figure** (precision, recall, mAP@0.5, F1) and saves it under `docs/` (default output: `docs/yolo_per_class_performance.png`). It looks for training artifacts under `data/models/yolov5/runs/train/` when present; otherwise it synthesizes illustrative metrics for the chart. **pandas** and **PyYAML** improve result parsing if installed.
+
+```powershell
+python scripts/generate_per_class_performance.py
+```
+
 ## 🔧 Auto-Labeling Images
 
 Add new images to the dataset with automatic placeholder labels:
@@ -205,35 +238,65 @@ yolo task=detect mode=val \
 
 ## 📖 API Usage
 
-### Upload and Detect
+### Upload and Detect (TRL 3 bimodal)
 
 **POST** `/api/detect`
 
-Upload an image file to detect fruit ripeness.
+Upload an image for **YOLO detection + simulated chemical readings + late fusion**.
 
-**Request:**
-- Content-Type: `multipart/form-data`
-- Field: `image` (image file)
+**Request** (`multipart/form-data`):
 
-**Response:**
+| Field | Description |
+|--------|-------------|
+| `image` | Image file (required) |
+| `hours_since_harvest` | Optional; default **24** (hours). Drives ethylene simulation. |
+| `temperature` | Optional; °C, default from app simulation settings (typically **25**). |
+| `humidity` | Optional; relative humidity %, default **80**. |
+
+**Response** (success): `results` includes, among other fields:
+
+- `trl_disclaimer` — TRL 3 / simulation disclaimer text.
+- `simulation_metadata` — ethylene model string, noise \(\sigma\), fusion weights, classification thresholds, and the temperature/humidity/hours used.
+- `fruits` — list of detections with:
+  - `type`, `ripeness` (fusion-based label: Fresh / Ripe / Overripe per engine thresholds), `confidence` (fusion score), `yolo_confidence`
+  - `nir_confidence` — **normalized chemical proxy** \(\hat{E}(t)\in[0,1]\) (name kept for API compatibility)
+  - `chemical_data` — `ethylene_ppm`, `brix`, `moisture`, `composite_quality`
+  - `fusion_details` — `has_conflict`, `disagreement`, `resolution_strategy`, `weights`
+  - `bbox`
+- `statistics` — batch fusion summaries when the fusion engine is active
+
+Example (trimmed):
+
 ```json
 {
   "success": true,
   "scan_id": "uuid",
   "results": {
-    "total_fruits": 3,
+    "trl_disclaimer": "...",
+    "simulation_metadata": { "ethylene_model": "E(t) = E₀e^(kt)", "input_conditions": { } },
+    "total_fruits": 2,
     "fruits": [
       {
         "type": "Banana",
-        "confidence": 0.95,
         "ripeness": "Ripe",
+        "confidence": 0.82,
+        "yolo_confidence": 0.91,
+        "nir_confidence": 0.61,
+        "chemical_data": {
+          "ethylene_ppm": 1.2,
+          "brix": 14.5,
+          "moisture": 82.0,
+          "composite_quality": 0.71
+        },
+        "fusion_details": {
+          "has_conflict": false,
+          "resolution_strategy": "standard_fusion",
+          "weights": { "alpha_visual": 0.7, "beta_chemical": 0.3 }
+        },
         "bbox": [x1, y1, x2, y2]
       }
     ],
-    "fruit_counts": {
-      "Fresh Banana": 2,
-      "Ripe Mango": 1
-    }
+    "statistics": { }
   }
 }
 ```
@@ -252,27 +315,24 @@ Export individual scan results as a formatted text file (.txt). The report inclu
 - Scan information (ID, date, total fruits)
 - Ripeness summary statistics
 - Detailed detection results grouped by fruit type
-- Confidence scores (overall, YOLO, NIR)
+- Confidence scores (overall, YOLO, and **chemical proxy** — may be labeled “NIR” in older exports)
 
 **GET** `/api/export-history`
 
 Export all scan history as CSV file. Includes all scans with columns:
 - Scan ID, Timestamp, Total Fruits
 - Fruit Type, Ripeness, Confidence scores
-- YOLO and NIR confidence percentages
+- YOLO and chemical-proxy columns (historically named for NIR in some views)
 
 Useful for bulk data analysis in Excel or other spreadsheet applications.
 
 ## ⚙️ Configuration
 
-Edit `config.py` to customize:
+- **Detection & TRL 3 fusion (primary):** The running Flask app reads **`Config` inside `app.py`** for model paths, upload limits, simulation parameters (`SIMULATION_PARAMS`), late fusion weights (`FUSION_WEIGHTS`), and freshness thresholds (`FRESHNESS_THRESHOLDS`). Adjust there for behavior you see in `/settings` and `/api/detect`.
 
-- **Model Path**: Trained YOLO model location
-- **Dataset Path**: Dataset configuration file
-- **Confidence Threshold**: Detection confidence (default: 0.25)
-- **IOU Threshold**: Non-maximum suppression threshold (default: 0.45)
-- **Database**: SQLite (default), PostgreSQL, or MySQL
-- **NIR Scanner**: Enable/disable NIR integration
+- **`config.py`:** Database URL (`DATABASE_TYPE`, SQLite path, PostgreSQL/MySQL env vars), directory creation, and mirrored simulation/fusion constants used by the **database** layer and shared tooling. Keep DB-related values here in sync with deployment.
+
+- **Legacy / optional NIR package:** `nir/nir_scanner.py` and NIR flags in `config.py` support earlier mock-hardware stories; the **current default pipeline** in `app.py` uses **`ChemicalSimulator` + `FusionEngine`**, not live NIR fusion.
 
 ## 🗄️ Database
 
@@ -348,43 +408,30 @@ detector = YOLODetector(
 ---
 
 #### `FusionEngine` (`models/fusion_engine.py`)
-Fuses YOLO detection results with NIR (Near-Infrared) analysis for enhanced quality assessment.
+**Late fusion** between **YOLO confidence** \(C_{\text{YOLO}}\) and the **normalized chemical proxy** \(\hat{E}(t)\) from `ChemicalSimulator` (thesis-style weights \(\alpha=0.7\), \(\beta=0.3\), conflict threshold \(\delta \approx 0.15\)).
 
 **Initialization:**
 ```python
-fusion_engine = FusionEngine(
-    yolo_detector: YOLODetector,
-    nir_scanner: NIRScannerBase
-)
+fusion_engine = FusionEngine(alpha=0.7, beta=0.3, delta=0.15)
 ```
 
 **Key Methods:**
-- `fuse_detections(yolo_results: List[Dict], image_path: str) -> List[Dict]` - Fuse YOLO and NIR results for each detection
-- `set_fusion_weights(yolo_weight: float, nir_weight: float)` - Adjust fusion weights (default: YOLO=0.7, NIR=0.3)
+- `fuse_single(c_yolo, e_hat, fruit_type='unknown') -> Dict` — single detection; returns `fusion_score`, `classification` (Fresh / Ripe / Overripe), conflict flags, and resolution strategy.
+- `batch_fuse(yolo_prepared, chemical_readings) -> List[Dict]` — aligns each YOLO box with a `ChemicalReading` or dict with `normalized_proxy`.
 
-**Fusion Strategy:**
-- Weighted average: YOLO (70%) + NIR (30%)
-- Agreement checking: If YOLO and NIR agree on ripeness, confidence is boosted
-- Disagreement handling: Uses weighted decision based on confidence scores
+**Conflict handling (summary):** If \(|C_{\text{YOLO}} - \hat{E}(t)| > \delta\), weights shift (e.g. vision-dominant or chemical-boosted blend) per `resolution_strategy`; otherwise standard \( \alpha C_{\text{YOLO}} + \beta \hat{E}(t)\).
 
-**Fused Result Format:**
-```python
-{
-    'bbox': [x1, y1, x2, y2],
-    'class_id': int,
-    'class_name': str,
-    'confidence': float,  # Overall fused confidence
-    'yolo_confidence': float,
-    'nir_confidence': float,
-    'ripeness': str,
-    'yolo_ripeness': str,
-    'nir_ripeness': str,
-    'ripeness_confidence': float,
-    'nir_quality_score': float,
-    'fusion_method': str,  # 'weighted_average'
-    'agreement': str  # 'high' or 'moderate'
-}
-```
+**Fused result fields (typical):** `fusion_score`, `classification`, `visual_confidence`, `chemical_proxy`, `has_conflict`, `disagreement`, `resolution_strategy`, `weights_applied`, plus bbox / class passthrough from the batch step.
+
+---
+
+#### `ChemicalSimulator` (`models/chemical_simulator.py`)
+Generates **synthetic** ethylene and NIR-proxy features per fruit type (climacteric parameters, caps, noise, temperature/humidity drift). Exposes `simulate(...)` → `ChemicalReading` and `batch_simulate` for multiple detections.
+
+---
+
+#### `StatisticalValidator` (`utils/statistical_validator.py`)
+Optional helpers for **bootstrap confidence intervals** and **McNemar’s test** (paired YOLO vs fusion). Install **`scikit-learn`** to use this module.
 
 ---
 
@@ -479,21 +526,23 @@ db_handler = DatabaseHandler(database_url: Optional[str] = None)
 
 ```
 Flask App (app.py)
-    ├── YOLODetector ──┐
-    │                  ├──> FusionEngine
-    └── NIRScannerBase ┘
+    ├── YOLODetector
+    ├── ChemicalSimulator  ──┐
+    │                         ├──> FusionEngine.batch_fuse(...)
+    └── (optional StatisticalValidator for offline analysis)
     │
     └── DatabaseHandler
             ├── Scan (SQLAlchemy Model)
             └── Fruit (SQLAlchemy Model)
 ```
 
-**Data Flow:**
-1. User uploads image → Flask app receives request
-2. `YOLODetector.detect()` → Detects fruits using YOLO model
-3. `FusionEngine.fuse_detections()` → Combines YOLO + NIR results (if NIR enabled)
-4. `DatabaseHandler.save_scan()` → Stores results in database
-5. Results returned to user via API response
+**Data Flow (TRL 3):**
+1. Upload image → save under configured upload folder
+2. `YOLODetector.detect()` → bounding boxes and class names
+3. `ChemicalSimulator.simulate()` per detection (fruit type, hours, temp, humidity)
+4. `FusionEngine.batch_fuse()` → fused freshness label and scores
+5. `DatabaseHandler.save_scan()` → persist JSON results (when DB available)
+6. API returns structured results + simulation metadata + disclaimer
 
 ---
 
@@ -511,7 +560,7 @@ While the bimodal framework requires more processing time, it demonstrates super
 
 ## 🔬 Fusion Formulation
 
-The bimodal fusion framework combines visual (YOLO) and chemical (NIR) modalities to achieve superior freshness classification. The following diagram and mathematical formulation describe how the fusion engine processes and combines these modalities.
+The bimodal fusion framework combines **visual (YOLO)** and a **chemical proxy** (simulated \(\hat{E}(t)\) standing in for thesis NIR / FELIX-style sensing). The diagrams and algebra below were written with **NIR** notation; in the **current codebase**, treat **\(C_{\text{NIR}}\)** as **the normalized chemical proxy** from `ChemicalSimulator`, not laboratory spectra.
 
 ![Fusion Formulation Diagram](docs/fusion_formulation_diagram.png)
 

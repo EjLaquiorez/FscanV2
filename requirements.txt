@@ -14,6 +14,7 @@ pillow==11.3.0
 pyyaml==6.0.3
 requests==2.32.5
 scipy==1.16.2
+scikit-learn>=1.5.0
 psutil==7.1.2
 polars==1.34.0
 
@@ -28,9 +29,13 @@ werkzeug==3.0.1
 
 # Database support
 sqlalchemy>=2.0.36  # 2.0.23 breaks on Python 3.14+ (typing)
-psycopg2-binary==2.9.9  # PostgreSQL driver; may need prebuilt wheel for your Python—skip if build fails
+# PostgreSQL: use psycopg3 (wheels for Py 3.14). psycopg2-binary often fails to build on 3.13+.
+psycopg[binary]>=3.2
 pymysql==1.1.0  # MySQL driver (alternative)
 
 # Environment variables
 python-dotenv==1.0.0
+
+# Tests (dev)
+pytest>=8.0.0
 

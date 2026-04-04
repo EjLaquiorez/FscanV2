@@ -4,25 +4,32 @@
 Write-Host "Starting Fruit Quality Scanner..." -ForegroundColor Cyan
 Write-Host ""
 
-# Check if .venv_yolo exists
-if (-not (Test-Path ".venv_yolo")) {
-    Write-Host "ERROR: .venv_yolo virtual environment not found!" -ForegroundColor Red
-    Write-Host "Please create it first or install dependencies." -ForegroundColor Yellow
-    exit 1
-}
-
-# Check for Python executable
+# Prefer .venv, then .venv_yolo, then system python on PATH
 $pythonPath = $null
-if (Test-Path ".venv_yolo\Scripts\python.exe") {
+$venvName = $null
+if (Test-Path ".venv\Scripts\python.exe") {
+    $pythonPath = ".venv\Scripts\python.exe"
+    $venvName = ".venv"
+} elseif (Test-Path ".venv_yolo\Scripts\python.exe") {
     $pythonPath = ".venv_yolo\Scripts\python.exe"
+    $venvName = ".venv_yolo"
+} elseif (Test-Path ".venv\bin\python.exe") {
+    $pythonPath = ".venv\bin\python.exe"
+    $venvName = ".venv"
 } elseif (Test-Path ".venv_yolo\bin\python.exe") {
     $pythonPath = ".venv_yolo\bin\python.exe"
-} else {
-    Write-Host "ERROR: Python executable not found in .venv_yolo" -ForegroundColor Red
+    $venvName = ".venv_yolo"
+}
+
+if (-not $pythonPath) {
+    Write-Host "ERROR: No virtual environment found. Create one and install requirements:" -ForegroundColor Red
+    Write-Host '  python -m venv .venv' -ForegroundColor Yellow
+    Write-Host '  .\.venv\Scripts\Activate.ps1' -ForegroundColor Yellow
+    Write-Host '  pip install -r requirements.txt' -ForegroundColor Yellow
     exit 1
 }
 
-Write-Host "Using virtual environment: .venv_yolo" -ForegroundColor Green
+Write-Host "Using virtual environment: $venvName" -ForegroundColor Green
 Write-Host "Starting Flask application..." -ForegroundColor Cyan
 Write-Host ""
 Write-Host "The application will be available at:" -ForegroundColor Yellow

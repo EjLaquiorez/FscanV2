@@ -5,27 +5,23 @@ REM Uses .venv_yolo virtual environment
 echo Starting Fruit Quality Scanner...
 echo.
 
-REM Check if .venv_yolo exists
-if not exist ".venv_yolo" (
-    echo ERROR: .venv_yolo virtual environment not found!
-    echo Please create it first or install dependencies.
-    pause
-    exit /b 1
-)
-
-REM Check for Python executable
+REM Prefer .venv then .venv_yolo
 set PYTHON_PATH=
-if exist ".venv_yolo\Scripts\python.exe" (
+if exist ".venv\Scripts\python.exe" (
+    set PYTHON_PATH=.venv\Scripts\python.exe
+    set VENV_NAME=.venv
+) else if exist ".venv_yolo\Scripts\python.exe" (
     set PYTHON_PATH=.venv_yolo\Scripts\python.exe
-) else if exist ".venv_yolo\bin\python.exe" (
-    set PYTHON_PATH=.venv_yolo\bin\python.exe
-) else (
-    echo ERROR: Python executable not found in .venv_yolo
+    set VENV_NAME=.venv_yolo
+)
+if "%PYTHON_PATH%"=="" (
+    echo ERROR: No .venv or .venv_yolo found. Run: python -m venv .venv
+    echo Then: .venv\Scripts\pip install -r requirements.txt
     pause
     exit /b 1
 )
 
-echo Using virtual environment: .venv_yolo
+echo Using virtual environment: %VENV_NAME%
 echo Starting Flask application...
 echo.
 echo The application will be available at:

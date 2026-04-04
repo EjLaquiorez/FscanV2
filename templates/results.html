@@ -35,8 +35,8 @@
                             <div class="stat-label">Total Fruits</div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-value">{{ unripe_count }}</div>
-                            <div class="stat-label">Unripe</div>
+                            <div class="stat-value">{{ fresh_count }}</div>
+                            <div class="stat-label">Fresh</div>
                         </div>
                     </div>
                 </div>
@@ -120,8 +120,8 @@
                 <div class="grid-right-bottom-3">
                     <h3 style="margin-bottom: 16px; font-size: 1.125rem; font-weight: 600; color: #2c5530;">Quick Stats</h3>
                     <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.875rem;">
+                        <div>Fresh: <strong>{{ fresh_count }}</strong> ({{ "%.0f"|format((fresh_count / total_fruits * 100) if total_fruits > 0 else 0) }}%)</div>
                         <div>Ripe: <strong>{{ ripe_count }}</strong> ({{ "%.0f"|format((ripe_count / total_fruits * 100) if total_fruits > 0 else 0) }}%)</div>
-                        <div>Unripe: <strong>{{ unripe_count }}</strong> ({{ "%.0f"|format((unripe_count / total_fruits * 100) if total_fruits > 0 else 0) }}%)</div>
                         <div>Overripe: <strong>{{ overripe_count }}</strong> ({{ "%.0f"|format((overripe_count / total_fruits * 100) if total_fruits > 0 else 0) }}%)</div>
                     </div>
                 </div>
