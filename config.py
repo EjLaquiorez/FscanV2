@@ -70,3 +70,27 @@ UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 PROCESSED_FOLDER.mkdir(parents=True, exist_ok=True)
 (BASE_DIR / 'database').mkdir(parents=True, exist_ok=True)
 
+# TRL 3 Simulation Settings
+SIMULATION_PARAMS = {
+    'ethylene_noise_sigma': 0.05,      # Gaussian noise from Voss et al.
+    'temperature_coefficient': 0.15,    # ±15% sensitivity
+    'humidity_coefficient': 0.05,       # γ = 0.05
+    'nominal_temperature': 25,          # 25°C baseline
+    'nominal_humidity': 80,             # 80% RH baseline
+    'conflict_threshold': 0.15          # δ = 0.15 for fusion conflict
+}
+
+# Fusion Weights (Thesis validated)
+FUSION_WEIGHTS = {
+    'visual_alpha': 0.7,      # YOLO weight
+    'chemical_beta': 0.3,     # Chemical proxy weight
+    'conflict_boost_yolo': 0.9,   # When YOLO >> Chemical
+    'conflict_boost_chem': 0.4    # When Chemical >> YOLO (conservative)
+}
+
+# Classification Thresholds (Thesis Table 3.3.4)
+FRESHNESS_THRESHOLDS = {
+    'fresh': 0.80,      # F(t) >= 0.80
+    'ripe': 0.65,       # 0.65 <= F(t) < 0.80
+    'overripe': 0.00    # F(t) < 0.65
+}

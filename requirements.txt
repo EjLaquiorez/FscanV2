@@ -27,8 +27,8 @@ flask-cors==4.0.0
 werkzeug==3.0.1
 
 # Database support
-sqlalchemy==2.0.23
-psycopg2-binary==2.9.9  # PostgreSQL driver
+sqlalchemy>=2.0.36  # 2.0.23 breaks on Python 3.14+ (typing)
+psycopg2-binary==2.9.9  # PostgreSQL driver; may need prebuilt wheel for your Python—skip if build fails
 pymysql==1.1.0  # MySQL driver (alternative)
 
 # Environment variables
