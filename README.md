@@ -2,7 +2,7 @@
 
 A fruit ripeness detection web application built around a **FELIX-inspired bimodal framework** at **Technology Readiness Level 3 (TRL 3)**.
 
-- **Visual modality:** Ultralyics YOLO detection (e.g. YOLOv5n / class set in `data.yaml`).
+- **Visual modality:** Ultralytics YOLO detection (e.g. YOLOv5n / class set in `data.yaml`; `requirements.txt` pins the `ultralytics` train/infer stack).
 - **Chemical modality (simulated):** No physical gas or NIR hardware in this build. The app uses a **mathematical chemical simulator** (ethylene dynamics \(E(t)=E_0 e^{kt}\), environmental drift, and NIR-style proxy signals) described in `models/chemical_simulator.py`.
 - **Fusion:** **Late fusion** at decision level—default weights **0.7 visual / 0.3 chemical**, with **conflict resolution** when visual confidence and the normalized chemical proxy disagree beyond a threshold \(\delta\) (see `models/fusion_engine.py` and the Settings page).
 
@@ -19,7 +19,7 @@ A fruit ripeness detection web application built around a **FELIX-inspired bimod
 | Shared env / DB URL / simulation constants for DB layer | `config.py` |
 | Chemical simulation (`ChemicalSimulator`, `ChemicalReading`) | `models/chemical_simulator.py` |
 | Late fusion + batch fuse + freshness labels | `models/fusion_engine.py` |
-| Bootstrap CI, McNemar (thesis-style validation helpers) | `utils/statistical_validator.py` *(requires `scikit-learn` if you use it)* |
+| Bootstrap CI, McNemar (thesis-style validation helpers) | `utils/statistical_validator.py` *(uses `scikit-learn`, pinned in `requirements.txt`)* |
 | Per-class performance charts from training outputs | `scripts/generate_per_class_performance.py` |
 
 Detection flow: upload → YOLO → per-detection chemical readings → `FusionEngine.batch_fuse` → annotated image + JSON (including `chemical_data`, `fusion_details`, `simulation_metadata`, `trl_disclaimer`).
@@ -44,6 +44,9 @@ FscanV2/
 │   ├── auto_label_dataset.py
 │   ├── train_yolov5.py
 │   ├── generate_per_class_performance.py  # Per-class metrics charts
+│   ├── generate_fusion_diagram.py
+│   ├── generate_confidence_comparison_graph.py
+│   ├── generate_response_time_graph.py
 │   ├── run_app.bat
 │   ├── run_app.ps1
 │   └── optimize_gpu_performance.bat
@@ -68,10 +71,29 @@ FscanV2/
 │
 ├── static/                # css/, js/, images/
 ├── templates/             # index, results, history, settings, ...
-└── tests/                 # (to be expanded)
+└── tests/                 # pytest suite
+    ├── conftest.py
+    ├── test_app_helpers.py
+    ├── test_app_routes.py
+    ├── test_chemical_simulator.py
+    └── test_fusion_engine.py
 ```
 
-**Weights path:** `app.py` expects the trained checkpoint at `models/weights/best.pt` and `data.yaml` at the repo root (see `Config` in `app.py`). If your layout differs, update those paths or align files accordingly.
+**Weights and dataset YAML:** The running app resolves paths in `Config` inside `app.py`:
+
+| Override (optional) | Purpose |
+|---------------------|--------|
+| `YOLO_MODEL_PATH` | Absolute path to a `.pt` checkpoint |
+| `YOLO_DATA_YAML` | Absolute path to `data.yaml` |
+
+If those are unset, the first **existing** file wins, in order:
+
+- **Model:** `models/weights/best.pt` → `data/models/yolov5n/runs/train/yolov5n_fruit_ripeness/weights/best.pt`
+- **YAML:** repo-root `data.yaml` → `data/datasets/Fruit_dataset/data.yaml`
+
+`config.py` still defines default `MODEL_PATH` / `DATA_YAML_PATH` for the database layer and tooling; keep training outputs or env vars aligned with what `app.py` resolves.
+
+**Uploads (Flask):** Original uploads are stored under `uploads/` at the repository root (`Config.UPLOAD_FOLDER` in `app.py`), not under `static/images/uploads` (which `config.py` uses for some legacy paths).
 
 ---
 
@@ -97,7 +119,7 @@ pip install -r requirements.txt
 
 - **SQLAlchemy:** `requirements.txt` pins `sqlalchemy>=2.0.36` because older 2.0.x releases fail on **Python 3.14+** during import.
 - **PostgreSQL:** the project uses **`psycopg` v3** (`psycopg[binary]` in `requirements.txt`), which ships wheels for recent Python versions including **3.14**. The DB URL uses the `postgresql+psycopg://` dialect in `config.py`. Default `DATABASE_TYPE` is still **sqlite** for local runs.
-- **Statistical utilities:** To run or import `utils/statistical_validator.py`, install **`scikit-learn`** (not required for the main scan endpoint).
+- **Statistical utilities:** `scikit-learn` is listed in `requirements.txt` for `utils/statistical_validator.py` and general scientific stack compatibility; the main `/api/detect` path does not require calling that module.
 
 The legacy script `scripts/run_app.ps1` looks for a venv named **`.venv_yolo`**. Either create/rename your venv to match or run `python app.py` from an activated `.venv` as above.
 
@@ -221,6 +243,16 @@ python scripts/auto_label_dataset.py \
 
 ## 🧪 Validation and Testing
 
+### Automated tests (pytest)
+
+From the repository root (with the virtual environment activated):
+
+```powershell
+pytest tests/ -q
+```
+
+### YOLO validation / val split
+
 ```powershell
 # Validate on validation set
 yolo task=detect mode=val \
@@ -258,7 +290,7 @@ Upload an image for **YOLO detection + simulated chemical readings + late fusion
 - `trl_disclaimer` — TRL 3 / simulation disclaimer text.
 - `simulation_metadata` — ethylene model string, noise \(\sigma\), fusion weights, classification thresholds, and the temperature/humidity/hours used.
 - `fruits` — list of detections with:
-  - `type`, `ripeness` (fusion-based label: Fresh / Ripe / Overripe per engine thresholds), `confidence` (fusion score), `yolo_confidence`
+  - `type`, `ripeness` (fusion-based label: **Unripe / Ripe / Overripe** per `FRESHNESS_THRESHOLDS`; high fusion score → Unripe), `confidence` (fusion score), `yolo_confidence`
   - `nir_confidence` — **normalized chemical proxy** \(\hat{E}(t)\in[0,1]\) (name kept for API compatibility)
   - `chemical_data` — `ethylene_ppm`, `brix`, `moisture`, `composite_quality`
   - `fusion_details` — `has_conflict`, `disagreement`, `resolution_strategy`, `weights`
@@ -416,12 +448,12 @@ fusion_engine = FusionEngine(alpha=0.7, beta=0.3, delta=0.15)
 ```
 
 **Key Methods:**
-- `fuse_single(c_yolo, e_hat, fruit_type='unknown') -> Dict` — single detection; returns `fusion_score`, `classification` (Fresh / Ripe / Overripe), conflict flags, and resolution strategy.
+- `fuse_single(c_yolo, e_hat, fruit_type='unknown') -> Dict` — single detection; returns `fusion_score`, `classification` (**Unripe / Ripe / Overripe** from \(F(t)\) vs `FRESHNESS_THRESHOLDS`), conflict flags, and resolution strategy.
 - `batch_fuse(yolo_prepared, chemical_readings) -> List[Dict]` — aligns each YOLO box with a `ChemicalReading` or dict with `normalized_proxy`.
 
-**Conflict handling (summary):** If \(|C_{\text{YOLO}} - \hat{E}(t)| > \delta\), weights shift (e.g. vision-dominant or chemical-boosted blend) per `resolution_strategy`; otherwise standard \( \alpha C_{\text{YOLO}} + \beta \hat{E}(t)\).
+**Conflict handling (summary):** If \(|C_{\text{YOLO}} - \hat{E}(t)| > \delta\), weights shift to **(0.9, 0.1)** when YOLO is higher (`resolution_strategy`: `yolo_dominant`) or **(0.6, 0.4)** when the proxy is higher (`chemical_boosted`); otherwise **standard** \( \alpha C_{\text{YOLO}} + \beta \hat{E}(t)\) with `resolution_strategy`: `standard_fusion`.
 
-**Fused result fields (typical):** `fusion_score`, `classification`, `visual_confidence`, `chemical_proxy`, `has_conflict`, `disagreement`, `resolution_strategy`, `weights_applied`, plus bbox / class passthrough from the batch step.
+**Fused result fields (typical):** `fusion_score`, `classification`, `visual_confidence`, `chemical_proxy`, `has_conflict`, `disagreement`, `resolution_strategy`, `weights_applied` (and `resolution_note`), plus bbox / class passthrough from the batch step.
 
 ---
 
@@ -431,7 +463,7 @@ Generates **synthetic** ethylene and NIR-proxy features per fruit type (climacte
 ---
 
 #### `StatisticalValidator` (`utils/statistical_validator.py`)
-Optional helpers for **bootstrap confidence intervals** and **McNemar’s test** (paired YOLO vs fusion). Install **`scikit-learn`** to use this module.
+Helpers for **bootstrap confidence intervals** and **McNemar’s test** (paired YOLO vs fusion). **`scikit-learn`** is included in `requirements.txt` for this and other dependencies.
 
 ---
 
@@ -559,6 +591,8 @@ While the bimodal framework requires more processing time, it demonstrates super
 ---
 
 ## 🔬 Fusion Formulation
+
+**Implementation note:** In `models/fusion_engine.py`, the live pipeline computes one fused score \(F(t)\) with optional **conflict weighting**, then assigns **Unripe / Ripe / Overripe** using scalar thresholds (`FRESHNESS_THRESHOLDS` in `config.py` / `app.py`). The multi-stage **\(R_{\text{YOLO}}\) vs \(R_{\text{NIR}}\)** agreement rules in this section follow the **thesis / diagram** narrative; they are **not** spelled out as separate stages in the current engine.
 
 The bimodal fusion framework combines **visual (YOLO)** and a **chemical proxy** (simulated \(\hat{E}(t)\) standing in for thesis NIR / FELIX-style sensing). The diagrams and algebra below were written with **NIR** notation; in the **current codebase**, treat **\(C_{\text{NIR}}\)** as **the normalized chemical proxy** from `ChemicalSimulator`, not laboratory spectra.
 
